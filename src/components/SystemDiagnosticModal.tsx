@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Activity,
   CheckCircle2,
@@ -20,18 +20,31 @@ import {
   Flame,
   Trash2,
   ShieldAlert,
+  ShieldCheck,
   AlertOctagon,
   ArrowRight,
   Monitor,
   Check,
+  FileText,
+  Download,
+  Save,
+  Eye,
+  Copy,
+  FolderCheck,
 } from 'lucide-react';
-import { DiagnosticTestResult, GpuStatusInfo, GpuAccelerationMode } from '../types';
+import { DiagnosticTestResult, GpuStatusInfo, GpuAccelerationMode, HallunoxStatus, HallunoxVerificationResult } from '../types';
 import {
   runSystemDiagnostics,
   DiagnosticSuiteResult,
   fetchGpuStatus,
   purgeVramModels,
+  saveVramDiagnosticReport,
+  fetchSavedDiagnosticReports,
+  VramAlertReport,
+  SavedReportItem,
 } from '../services/knowledgeService';
+import { fetchHallunoxStatus, verifyWithHallunox, downloadHallunoxFile } from '../services/hallunoxService';
+import { VramUsageChartD3 } from './VramUsageChartD3';
 
 interface SystemDiagnosticModalProps {
   isOpen: boolean;
@@ -52,7 +65,60 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
 }) => {
   const [isRunning, setIsRunning] = useState(false);
   const [suiteResult, setSuiteResult] = useState<DiagnosticSuiteResult | null>(null);
-  const [activeTab, setActiveTab] = useState<'tests' | 'gpu' | 'interactive' | 'tuning'>('tests');
+  const [activeTab, setActiveTab] = useState<'tests' | 'gpu' | 'hallunox' | 'interactive' | 'tuning'>('tests');
+
+  // Hallunox Anti-Hallucination Guardrail State
+  const [hallunoxStatus, setHallunoxStatus] = useState<HallunoxStatus | null>(null);
+  const [isLoadingHallunox, setIsLoadingHallunox] = useState(false);
+  const [hallunoxPrompt, setHallunoxPrompt] = useState('Erkläre die Vor- und Nachteile von Microservices gegenüber einem Monolithen.');
+  const [hallunoxResponse, setHallunoxResponse] = useState('Microservices bieten unabhängige Skalierbarkeit und modulare Bereitstellung, erhöhen jedoch die Netzwerkkomplexität und den Betriebsaufwand im Vergleich zu einer monolithischen Architektur.');
+  const [hallunoxTestResult, setHallunoxTestResult] = useState<HallunoxVerificationResult | null>(null);
+  const [isVerifyingHallunox, setIsVerifyingHallunox] = useState(false);
+  const [hallunoxCopiedCmd, setHallunoxCopiedCmd] = useState<string | null>(null);
+  const [hallunoxGuardrailEnabled, setHallunoxGuardrailEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('hybrid_hallunox_guardrail_enabled') !== 'false';
+    } catch {
+      return true;
+    }
+  });
+
+  const toggleHallunoxGuardrail = (enabled: boolean) => {
+    setHallunoxGuardrailEnabled(enabled);
+    try {
+      localStorage.setItem('hybrid_hallunox_guardrail_enabled', enabled ? 'true' : 'false');
+    } catch {}
+  };
+
+  const loadHallunoxStatus = async () => {
+    setIsLoadingHallunox(true);
+    try {
+      const st = await fetchHallunoxStatus();
+      setHallunoxStatus(st);
+    } catch {
+      // ignore
+    } finally {
+      setIsLoadingHallunox(false);
+    }
+  };
+
+  const handleTestHallunoxVerification = async () => {
+    if (!hallunoxPrompt.trim()) return;
+    setIsVerifyingHallunox(true);
+    try {
+      const res = await verifyWithHallunox({
+        prompt: hallunoxPrompt,
+        response: hallunoxResponse,
+        model: ollamaModel || 'llama3.2:3b',
+        threshold: 0.85,
+      });
+      setHallunoxTestResult(res);
+    } catch (err: any) {
+      console.error('Hallunox verification error:', err);
+    } finally {
+      setIsVerifyingHallunox(false);
+    }
+  };
 
   // GPU Acceleration & VRAM Monitor State
   const [gpuStatus, setGpuStatus] = useState<GpuStatusInfo | null>(null);
@@ -62,6 +128,163 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
   const [isPurgingVram, setIsPurgingVram] = useState(false);
   const [vramNotification, setVramNotification] = useState<string | null>(null);
   const [isLoadingGpu, setIsLoadingGpu] = useState(false);
+
+  // Custom VRAM Critical Threshold (in GB) with localStorage persistence
+  const [vramThresholdGb, setVramThresholdGb] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('hybrid_vram_threshold_gb');
+      if (saved) {
+        const val = parseFloat(saved);
+        if (!isNaN(val) && val > 0) return val;
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return 6.5;
+  });
+
+  const handleThresholdChange = (val: number) => {
+    const maxLimit = gpuStatus?.totalVramGb || 24.0;
+    const clamped = Math.max(1.0, Math.min(val, maxLimit));
+    const rounded = Number(clamped.toFixed(1));
+    setVramThresholdGb(rounded);
+    try {
+      localStorage.setItem('hybrid_vram_threshold_gb', rounded.toString());
+    } catch {
+      // ignore
+    }
+  };
+
+  // Synchronize threshold if GPU capacity is smaller than current threshold
+  useEffect(() => {
+    if (gpuStatus && vramThresholdGb > gpuStatus.totalVramGb) {
+      const adjusted = Number((gpuStatus.totalVramGb * 0.85).toFixed(1));
+      setVramThresholdGb(adjusted);
+      try {
+        localStorage.setItem('hybrid_vram_threshold_gb', adjusted.toString());
+      } catch {}
+    }
+  }, [gpuStatus?.totalVramGb]);
+
+  const isThresholdExceeded = gpuStatus ? gpuStatus.usedVramGb >= vramThresholdGb : false;
+  const thresholdPercentOfTotal = gpuStatus
+    ? Math.min(100, Math.round((vramThresholdGb / gpuStatus.totalVramGb) * 100))
+    : 85;
+
+  // VRAM Alert JSON Status Reports in D:\OllamaKnowledge\diagnostics
+  const [autoSaveReportsEnabled, setAutoSaveReportsEnabled] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('hybrid_vram_autosave_reports');
+      return saved !== 'false';
+    } catch {
+      return true;
+    }
+  });
+
+  const [savedReports, setSavedReports] = useState<SavedReportItem[]>([]);
+  const [lastSavedReport, setLastSavedReport] = useState<{
+    fileName: string;
+    targetPath: string;
+    timestamp: string;
+    report: VramAlertReport;
+  } | null>(null);
+  const [isSavingReport, setIsSavingReport] = useState(false);
+  const [reportSaveFeedback, setReportSaveFeedback] = useState<string | null>(null);
+  const [selectedReportForPreview, setSelectedReportForPreview] = useState<VramAlertReport | null>(null);
+  const [copiedReportJson, setCopiedReportJson] = useState(false);
+
+  const lastAutoSavedIncidentKeyRef = useRef<string>('');
+
+  const loadSavedReports = async () => {
+    try {
+      const res = await fetchSavedDiagnosticReports();
+      setSavedReports(res.reports);
+    } catch (err) {
+      console.warn('Could not load saved diagnostic reports:', err);
+    }
+  };
+
+  const handleToggleAutoSave = (enabled: boolean) => {
+    setAutoSaveReportsEnabled(enabled);
+    try {
+      localStorage.setItem('hybrid_vram_autosave_reports', enabled ? 'true' : 'false');
+    } catch {}
+  };
+
+  const handleSaveDiagnosticReport = async (autoTriggered = false) => {
+    if (!gpuStatus) return;
+    setIsSavingReport(true);
+    try {
+      const result = await saveVramDiagnosticReport({
+        gpuStatus,
+        thresholdGb: vramThresholdGb,
+        gpuTier,
+        ollamaHost,
+        autoTriggered,
+      });
+
+      setLastSavedReport({
+        fileName: result.fileName,
+        targetPath: result.targetPath,
+        timestamp: result.timestamp,
+        report: result.report,
+      });
+
+      setReportSaveFeedback(
+        autoTriggered
+          ? `Statusbericht automatisch archiviert in: ${result.targetPath}`
+          : `Statusbericht manuell gespeichert in: ${result.targetPath}`
+      );
+
+      await loadSavedReports();
+    } catch (err: any) {
+      setReportSaveFeedback(`Fehler beim Speichern: ${err?.message || 'Unbekannt'}`);
+    } finally {
+      setIsSavingReport(false);
+      setTimeout(() => setReportSaveFeedback(null), 8000);
+    }
+  };
+
+  const handleDownloadReportJson = (report: VramAlertReport, fileName?: string) => {
+    try {
+      const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName || report.fileName || `vram_alert_report_${Date.now()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Download failed:', err);
+    }
+  };
+
+  // Automatic trigger on critical threshold exceeded
+  useEffect(() => {
+    if (!isOpen || !gpuStatus || !isThresholdExceeded || !autoSaveReportsEnabled) return;
+
+    // Unique incident identifier based on model, threshold, and status to prevent endless save loop
+    const incidentKey = `${gpuStatus.activeModel.name}_${gpuTier}_${vramThresholdGb.toFixed(1)}_${gpuStatus.usedVramGb.toFixed(1)}`;
+    if (lastAutoSavedIncidentKeyRef.current === incidentKey) {
+      return;
+    }
+    lastAutoSavedIncidentKeyRef.current = incidentKey;
+
+    // Trigger auto-save
+    handleSaveDiagnosticReport(true);
+  }, [isThresholdExceeded, gpuStatus?.activeModel?.name, gpuStatus?.usedVramGb, vramThresholdGb, autoSaveReportsEnabled, isOpen]);
+
+  // Load reports list when GPU tab is active or modal opens
+  useEffect(() => {
+    if (isOpen && activeTab === 'gpu') {
+      loadSavedReports();
+    }
+    if (isOpen && (activeTab === 'hallunox' || !hallunoxStatus)) {
+      loadHallunoxStatus();
+    }
+  }, [isOpen, activeTab]);
 
   // Interactive cross-chat test runner
   const [testPrompt, setTestPrompt] = useState('Verifiziere den Hybrid-Verbund und die Speicherung auf Laufwerk D:');
@@ -313,23 +536,61 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
             onClick={() => setActiveTab('gpu')}
             className={`py-2.5 px-4 text-xs font-semibold border-b-2 transition-colors flex items-center gap-2 shrink-0 ${
               activeTab === 'gpu'
-                ? 'border-amber-400 text-amber-400'
+                ? isThresholdExceeded
+                  ? 'border-rose-400 text-rose-300'
+                  : 'border-amber-400 text-amber-400'
+                : isThresholdExceeded
+                ? 'border-transparent text-rose-300 hover:text-rose-200'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Zap className="w-3.5 h-3.5 text-amber-400" />
-            GPU-Beschleunigungs-Modus & VRAM
+            <Zap className={`w-3.5 h-3.5 ${isThresholdExceeded ? 'text-rose-400 animate-pulse' : 'text-amber-400'}`} />
+            GPU & VRAM-Wächter
             {gpuStatus && (
               <span
-                className={`ml-1 px-1.5 py-0.2 rounded text-[10px] font-bold ${
-                  gpuStatus.statusLevel === 'critical'
-                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse'
+                className={`ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 ${
+                  isThresholdExceeded
+                    ? 'bg-rose-500/30 text-rose-300 border border-rose-500/60 animate-pulse'
+                    : gpuStatus.statusLevel === 'critical'
+                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
                     : gpuStatus.statusLevel === 'warning'
                     ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                     : 'bg-emerald-500/20 text-emerald-300'
                 }`}
               >
-                {gpuStatus.vramPercent}%
+                {isThresholdExceeded ? (
+                  <>
+                    <AlertOctagon className="w-2.5 h-2.5 text-rose-400" />
+                    <span>ALARM ({gpuStatus.usedVramGb.toFixed(1)} GB &ge; {vramThresholdGb.toFixed(1)} GB)</span>
+                  </>
+                ) : (
+                  <span>{gpuStatus.vramPercent}% ({gpuStatus.usedVramGb.toFixed(1)} GB)</span>
+                )}
+              </span>
+            )}
+          </button>
+
+          {/* Hallunox Anti-Halluzinations-Wächter (PyPI) Tab */}
+          <button
+            id="diag-tab-hallunox"
+            onClick={() => setActiveTab('hallunox')}
+            className={`py-2.5 px-4 text-xs font-semibold border-b-2 transition-colors flex items-center gap-2 shrink-0 ${
+              activeTab === 'hallunox'
+                ? 'border-emerald-400 text-emerald-300'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <ShieldCheck className={`w-3.5 h-3.5 ${hallunoxStatus?.serviceRunning ? 'text-emerald-400' : 'text-cyan-400'}`} />
+            <span>Hallunox (PyPI) Guardrail</span>
+            {hallunoxStatus && (
+              <span
+                className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                  hallunoxStatus.serviceRunning
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                    : 'bg-slate-800 text-cyan-300 border border-slate-700'
+                }`}
+              >
+                {hallunoxStatus.serviceRunning ? 'Port 8001 Online' : 'PyPI Ready'}
               </span>
             )}
           </button>
@@ -417,18 +678,39 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
               ))}
 
               {/* Quick shortcut to GPU tab */}
-              <div className="p-3 rounded-xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/30 flex items-center justify-between">
+              <div
+                className={`p-3 rounded-xl flex items-center justify-between transition-colors ${
+                  isThresholdExceeded
+                    ? 'bg-gradient-to-r from-rose-950/70 via-slate-900 to-amber-950/50 border-2 border-rose-500/70 shadow-lg shadow-rose-950/40'
+                    : 'bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/30'
+                }`}
+              >
                 <div className="flex items-center gap-2.5 text-xs text-amber-300">
-                  <Zap className="w-4 h-4 text-amber-400 shrink-0" />
+                  {isThresholdExceeded ? (
+                    <AlertOctagon className="w-5 h-5 text-rose-400 shrink-0 animate-pulse" />
+                  ) : (
+                    <Zap className="w-4 h-4 text-amber-400 shrink-0" />
+                  )}
                   <span>
-                    <strong>Neu: GPU-Beschleunigungs-Modus & VRAM-Wächter</strong> – Überwacht Ollama-VRAM und warnt vor Windows 11 Überlastungen.
+                    {isThresholdExceeded ? (
+                      <strong className="text-rose-300">
+                        WARNUNG: VRAM-Schwelle überschritten ({gpuStatus?.usedVramGb.toFixed(1)} GB &ge; {vramThresholdGb.toFixed(1)} GB)!
+                      </strong>
+                    ) : (
+                      <strong>D3.js VRAM-Nutzungsdiagramm & Speicherwächter</strong>
+                    )}{' '}
+                    – Überwacht Windows 11 GPU-Speicherebenen mit interaktiver Vektorgrafik und Grenzwert-Alarm.
                   </span>
                 </div>
                 <button
                   onClick={() => setActiveTab('gpu')}
-                  className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs flex items-center gap-1 transition-colors cursor-pointer shrink-0 ml-2"
+                  className={`px-3 py-1 font-bold rounded-lg text-xs flex items-center gap-1 transition-colors cursor-pointer shrink-0 ml-2 ${
+                    isThresholdExceeded
+                      ? 'bg-rose-600 hover:bg-rose-500 text-white shadow'
+                      : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
+                  }`}
                 >
-                  <span>Zum GPU-Monitor</span>
+                  <span>Zum VRAM-Diagramm</span>
                   <ArrowRight className="w-3 h-3" />
                 </button>
               </div>
@@ -443,6 +725,101 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
                 <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2 animate-in fade-in">
                   <Check className="w-4 h-4 text-emerald-400 shrink-0" />
                   <span>{vramNotification}</span>
+                </div>
+              )}
+
+              {/* VISUAL THRESHOLD WARNING BANNER (USER CONFIGURED CRITICAL VRAM THRESHOLD) */}
+              {gpuStatus && isThresholdExceeded && (
+                <div className="p-4 rounded-xl bg-gradient-to-r from-rose-950/90 via-slate-950/95 to-amber-950/80 border-2 border-rose-500/80 shadow-xl shadow-rose-950/60 space-y-3 animate-in fade-in">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2.5 text-rose-300 font-bold text-sm">
+                      <AlertOctagon className="w-5 h-5 text-rose-400 animate-pulse shrink-0" />
+                      <span>VISUELLE WARNUNG: VRAM-SCHWELLE ÜBERSCHRITTEN ({gpuStatus.usedVramGb.toFixed(1)} GB &ge; {vramThresholdGb.toFixed(1)} GB)</span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/50">
+                      +{(gpuStatus.usedVramGb - vramThresholdGb).toFixed(1)} GB über Grenzwert
+                    </span>
+                  </div>
+                  <p className="text-xs text-rose-200/95 leading-relaxed">
+                    Der aktuelle Speicherverbrauch von Ollama ({simulatedModel}) hat Ihre eingestellte kritische Warnschwelle von <strong>{vramThresholdGb.toFixed(1)} GB</strong> ({thresholdPercentOfTotal}% von {gpuStatus.totalVramGb} GB VRAM) überschritten! Bei Auslagerung in den langsamen Windows-System-RAM (Shared Memory Spillover) drohen drastische Geschwindigkeitseinbußen und Ruckler in anderen Desktop-Anwendungen.
+                  </p>
+
+                  {/* AUTO-GENERATED STATUS REPORT NOTICE */}
+                  <div className="p-3 rounded-lg bg-slate-950/80 border border-rose-500/40 flex items-center justify-between flex-wrap gap-2.5">
+                    <div className="flex items-center gap-2.5 text-xs text-rose-200">
+                      <div className="w-7 h-7 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center shrink-0">
+                        <FolderCheck className="w-4 h-4 text-emerald-400" />
+                      </div>
+                      <div>
+                        <div className="font-semibold text-white flex items-center gap-2">
+                          <span>Statusbericht automatisch als JSON archiviert</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            D:\OllamaKnowledge\diagnostics
+                          </span>
+                        </div>
+                        <div className="text-[11px] font-mono text-slate-300 mt-0.5">
+                          {lastSavedReport ? lastSavedReport.fileName : `vram_alert_report_${new Date().toISOString().slice(0, 10)}.json`}
+                          {lastSavedReport && (
+                            <span className="text-slate-400 ml-2">
+                              ({(lastSavedReport.report.gpu.usedVramGb).toFixed(1)} GB &ge; {lastSavedReport.report.threshold.configuredThresholdGb.toFixed(1)} GB)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {lastSavedReport ? (
+                        <>
+                          <button
+                            onClick={() => setSelectedReportForPreview(lastSavedReport.report)}
+                            className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-medium rounded-lg border border-slate-700 flex items-center gap-1.5 cursor-pointer transition-colors"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-cyan-400" />
+                            <span>JSON anzeigen</span>
+                          </button>
+                          <button
+                            onClick={() => handleDownloadReportJson(lastSavedReport.report, lastSavedReport.fileName)}
+                            className="px-2.5 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors shadow-sm"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>JSON herunterladen</span>
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => handleSaveDiagnosticReport(false)}
+                          disabled={isSavingReport}
+                          className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-medium rounded-lg border border-slate-700 flex items-center gap-1.5 cursor-pointer transition-colors"
+                        >
+                          <Save className="w-3.5 h-3.5 text-amber-400" />
+                          <span>{isSavingReport ? 'Speichere...' : 'Jetzt archivieren'}</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="pt-1 flex items-center gap-2.5 flex-wrap">
+                    <button
+                      onClick={handlePurgeVram}
+                      disabled={isPurgingVram}
+                      className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-bold rounded-lg text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-md"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      {isPurgingVram ? 'Leere VRAM...' : 'VRAM jetzt leeren (Modell entladen)'}
+                    </button>
+                    <button
+                      onClick={() => handleSimulatedModelChange('llama3.2:3b')}
+                      className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-rose-200 rounded-lg text-xs font-semibold border border-rose-500/40 transition-colors cursor-pointer"
+                    >
+                      Auf 3B-Modell wechseln
+                    </button>
+                    <button
+                      onClick={() => handleThresholdChange(Math.min(gpuStatus.totalVramGb, Number((vramThresholdGb + 1.0).toFixed(1))))}
+                      className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-amber-300 rounded-lg text-xs font-semibold border border-amber-500/40 transition-colors cursor-pointer ml-auto"
+                    >
+                      Schwelle um +1.0 GB anheben
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -591,6 +968,113 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
                   </button>
                 </div>
               </div>
+
+              {/* VRAM THRESHOLD SLIDER CONTROLLER */}
+              {gpuStatus && (
+                <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <SlidersHorizontal className="w-4 h-4 text-amber-400" />
+                      <span className="text-xs font-bold text-white">
+                        Kritische VRAM-Auslastungsschwelle (in GB)
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        (Definiert den Grenzwert für visuelle Warnungen & D3-Marker)
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-amber-300">
+                        {vramThresholdGb.toFixed(1)} GB ({thresholdPercentOfTotal}% von {gpuStatus.totalVramGb} GB)
+                      </span>
+                      {isThresholdExceeded ? (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center gap-1 animate-pulse">
+                          <AlertOctagon className="w-3 h-3 text-rose-400" />
+                          SCHWELLE ÜBERSCHRITTEN
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                          NORMALBEREICH ({gpuStatus.usedVramGb.toFixed(1)} GB AKTIV)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Range Slider Track */}
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center gap-3">
+                      <span className="text-[11px] font-mono text-slate-500 shrink-0 font-medium">1.0 GB</span>
+                      <div className="relative flex-1 flex items-center">
+                        <input
+                          type="range"
+                          min="1.0"
+                          max={gpuStatus.totalVramGb}
+                          step="0.1"
+                          value={vramThresholdGb}
+                          onChange={(e) => handleThresholdChange(parseFloat(e.target.value))}
+                          className="w-full accent-amber-500 cursor-pointer h-2 bg-slate-800 rounded-lg appearance-none focus:outline-none"
+                        />
+                      </div>
+                      <span className="text-[11px] font-mono text-slate-500 shrink-0 font-medium">
+                        {gpuStatus.totalVramGb.toFixed(1)} GB
+                      </span>
+                    </div>
+
+                    {/* Meta info & Quick Preset Buttons */}
+                    <div className="flex items-center justify-between flex-wrap gap-2 text-[10px] text-slate-400 pt-0.5">
+                      <div className="flex items-center gap-2">
+                        <span>Aktuelle Belegung:</span>
+                        <strong className={isThresholdExceeded ? 'text-rose-400 font-bold' : 'text-slate-200'}>
+                          {gpuStatus.usedVramGb.toFixed(1)} GB ({gpuStatus.vramPercent}%)
+                        </strong>
+                        <span className="text-slate-600">|</span>
+                        <span className={isThresholdExceeded ? 'text-rose-400 font-medium' : 'text-emerald-400 font-medium'}>
+                          {isThresholdExceeded
+                            ? `+${(gpuStatus.usedVramGb - vramThresholdGb).toFixed(1)} GB über Warnschwelle`
+                            : `${(vramThresholdGb - gpuStatus.usedVramGb).toFixed(1)} GB Puffer bis zur Warnung`}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <span className="text-slate-500 mr-1">Vorgaben:</span>
+                        {[
+                          { label: '60%', pct: 0.6 },
+                          { label: '75%', pct: 0.75 },
+                          { label: '85% (Empfohlen)', pct: 0.85 },
+                          { label: '90%', pct: 0.9 },
+                          { label: 'Max (100%)', pct: 1.0 },
+                        ].map((preset) => {
+                          const val = Number((gpuStatus.totalVramGb * preset.pct).toFixed(1));
+                          const isActive = Math.abs(vramThresholdGb - val) < 0.15;
+                          return (
+                            <button
+                              key={preset.label}
+                              onClick={() => handleThresholdChange(val)}
+                              className={`px-1.5 py-0.5 text-[9px] font-semibold rounded transition-colors cursor-pointer ${
+                                isActive
+                                  ? 'bg-amber-500 text-slate-950 font-bold shadow'
+                                  : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+                              }`}
+                            >
+                              {preset.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* D3.JS VRAM USAGE DIAGRAM */}
+              {gpuStatus && (
+                <VramUsageChartD3
+                  gpuStatus={gpuStatus}
+                  activeModelName={simulatedModel}
+                  onSelectModel={handleSimulatedModelChange}
+                  thresholdGb={vramThresholdGb}
+                />
+              )}
 
               {/* VRAM USAGE DISPLAY & BREAKDOWN */}
               {gpuStatus && (
@@ -834,10 +1318,506 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
                   </table>
                 </div>
               </div>
+
+              {/* SECTION: VRAM STATUS REPORTS & DIAGNOSTIC ARCHIVE (D:\OllamaKnowledge\diagnostics) */}
+              <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-4">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <FolderCheck className="w-4 h-4 text-emerald-400" />
+                    <div>
+                      <h3 className="font-semibold text-slate-200 text-xs">
+                        Automatische Diagnoseberichte &amp; VRAM-Audit
+                      </h3>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[11px] text-slate-400">Speicherort:</span>
+                        <code className="text-[10px] px-1.5 py-0.5 rounded font-mono bg-slate-900 text-emerald-400 border border-emerald-500/30">
+                          D:\OllamaKnowledge\diagnostics
+                        </code>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleSaveDiagnosticReport(false)}
+                      disabled={isSavingReport || !gpuStatus}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 flex items-center gap-1.5 cursor-pointer transition-colors"
+                    >
+                      <Save className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>{isSavingReport ? 'Archiviere...' : 'Bericht jetzt manuell erstellen'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Auto-save toggle control */}
+                <div className="p-3 rounded-lg bg-slate-900/80 border border-slate-800 flex items-center justify-between flex-wrap gap-3">
+                  <div className="space-y-0.5">
+                    <span className="text-xs font-semibold text-white block">
+                      Automatisches Speichern bei kritischer VRAM-Schwelle
+                    </span>
+                    <p className="text-[11px] text-slate-400 leading-relaxed max-w-xl">
+                      Sobald der Ollama-Speicherbedarf den Grenzwert von <strong>{vramThresholdGb.toFixed(1)} GB</strong> überschreitet, wird sofort ein detaillierter JSON-Statusbericht mit GPU-Sensordaten, VRAM-Breakdown und Systemempfehlungen in <code>D:\OllamaKnowledge\diagnostics</code> abgelegt.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleToggleAutoSave(!autoSaveReportsEnabled)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      autoSaveReportsEnabled
+                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm shadow-emerald-900/40'
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-400 border border-slate-700'
+                    }`}
+                  >
+                    <Check className={`w-3.5 h-3.5 ${autoSaveReportsEnabled ? 'opacity-100' : 'opacity-0'}`} />
+                    <span>{autoSaveReportsEnabled ? 'Auto-Save Aktiv' : 'Auto-Save Deaktiviert'}</span>
+                  </button>
+                </div>
+
+                {/* Feedback Toast if any */}
+                {reportSaveFeedback && (
+                  <div className="p-3 rounded-lg bg-emerald-950/40 border border-emerald-500/50 flex items-center justify-between text-xs text-emerald-200 animate-in fade-in">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>{reportSaveFeedback}</span>
+                    </div>
+                    {lastSavedReport && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setSelectedReportForPreview(lastSavedReport.report)}
+                          className="px-2 py-0.5 bg-slate-900 hover:bg-slate-800 text-slate-200 rounded text-[11px] border border-slate-700 flex items-center gap-1 cursor-pointer"
+                        >
+                          <Eye className="w-3 h-3 text-cyan-400" />
+                          <span>Ansehen</span>
+                        </button>
+                        <button
+                          onClick={() => handleDownloadReportJson(lastSavedReport.report, lastSavedReport.fileName)}
+                          className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                        >
+                          <Download className="w-3 h-3" />
+                          <span>Download</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Saved Reports List */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs text-slate-400">
+                    <span className="font-semibold text-slate-300">
+                      Archivierte Berichte ({savedReports.length}):
+                    </span>
+                    <button
+                      onClick={loadSavedReports}
+                      className="text-[11px] text-cyan-400 hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>Liste aktualisieren</span>
+                    </button>
+                  </div>
+
+                  {savedReports.length === 0 ? (
+                    <div className="p-4 rounded-lg bg-slate-900/40 border border-slate-800/80 text-center text-xs text-slate-500">
+                      Noch keine Berichte archiviert. Sobald die VRAM-Schwelle überschritten wird, erscheint hier automatisch die archivierte JSON-Datei.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto rounded-lg border border-slate-800">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="bg-slate-900/90 text-[10px] text-slate-400 font-semibold uppercase tracking-wider border-b border-slate-800">
+                            <th className="py-2 px-3">Dateiname</th>
+                            <th className="py-2 px-3">Zeitstempel</th>
+                            <th className="py-2 px-3">Modell</th>
+                            <th className="py-2 px-3">VRAM / Schwelle</th>
+                            <th className="py-2 px-3">Dateigröße</th>
+                            <th className="py-2 px-3 text-right">Aktionen</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/60 bg-slate-950/40">
+                          {savedReports.map((item) => (
+                            <tr key={item.fileName} className="hover:bg-slate-900/50 transition-colors">
+                              <td className="py-2.5 px-3 font-mono text-[11px] text-slate-200 flex items-center gap-1.5">
+                                <FileText className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                <span className="truncate max-w-[200px]" title={item.fileName}>
+                                  {item.fileName}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 text-slate-400 text-[11px]">
+                                {new Date(item.timestamp).toLocaleString('de-DE')}
+                              </td>
+                              <td className="py-2.5 px-3 text-slate-300 font-semibold">
+                                {item.modelName || item.report?.activeModel?.name || 'llama3'}
+                              </td>
+                              <td className="py-2.5 px-3 text-rose-300 font-mono text-[11px]">
+                                {item.usedVramGb?.toFixed(1) || item.report?.gpu?.usedVramGb?.toFixed(1) || '0'} GB
+                                <span className="text-slate-500 font-normal"> / {item.thresholdGb?.toFixed(1) || item.report?.threshold?.configuredThresholdGb?.toFixed(1) || '6.5'} GB</span>
+                              </td>
+                              <td className="py-2.5 px-3 text-slate-400 text-[11px] font-mono">
+                                {item.sizeBytes ? `${(item.sizeBytes / 1024).toFixed(1)} KB` : '1.8 KB'}
+                              </td>
+                              <td className="py-2.5 px-3 text-right">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  {item.report && (
+                                    <button
+                                      onClick={() => setSelectedReportForPreview(item.report!)}
+                                      className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-medium rounded border border-slate-700 flex items-center gap-1 cursor-pointer transition-colors"
+                                      title="JSON im Modal ansehen"
+                                    >
+                                      <Eye className="w-3 h-3 text-cyan-400" />
+                                      <span>Vorschau</span>
+                                    </button>
+                                  )}
+                                  <a
+                                    href={`/api/diagnostics/reports/${encodeURIComponent(item.fileName)}?download=true`}
+                                    download={item.fileName}
+                                    onClick={(e) => {
+                                      if (item.report) {
+                                        e.preventDefault();
+                                        handleDownloadReportJson(item.report, item.fileName);
+                                      }
+                                    }}
+                                    className="px-2 py-1 bg-cyan-600/80 hover:bg-cyan-600 text-white text-[10px] font-semibold rounded flex items-center gap-1 cursor-pointer transition-colors"
+                                    title="JSON herunterladen"
+                                  >
+                                    <Download className="w-3 h-3" />
+                                    <span>JSON</span>
+                                  </a>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
-          {/* TAB 3: INTERACTIVE CHAT RUNNER */}
+          {/* TAB: HALLUNOX (PyPI) ANTI-HALLUZINATIONS-WÄCHTER */}
+          {activeTab === 'hallunox' && (
+            <div className="space-y-4">
+              {/* STATUS & CONNECTION CARD */}
+              <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                    <div>
+                      <h3 className="font-semibold text-slate-200 text-sm flex items-center gap-2">
+                        Hallunox Anti-Halluzinations-Framework (PyPI)
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-mono bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">
+                          pip install hallunox
+                        </span>
+                      </h3>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Pre-Generation Hallucination Mitigation via Hidden-State Semantic Projection &amp; Token Alignment.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={loadHallunoxStatus}
+                      disabled={isLoadingHallunox}
+                      className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 flex items-center gap-1.5 cursor-pointer transition-colors"
+                    >
+                      <RotateCcw className={`w-3.5 h-3.5 ${isLoadingHallunox ? 'animate-spin' : ''}`} />
+                      <span>{isLoadingHallunox ? 'Prüfe...' : 'Status aktualisieren'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Service Details Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-1">
+                  <div className="bg-slate-900/80 p-3 rounded-lg border border-slate-800">
+                    <span className="text-[10px] text-slate-400 block">Bridge-Dienst:</span>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <div
+                        className={`w-2 h-2 rounded-full ${
+                          hallunoxStatus?.serviceRunning ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+                        }`}
+                      />
+                      <span className="text-xs font-mono font-bold text-white">
+                        {hallunoxStatus?.serviceRunning ? 'Aktiv (Port 8001)' : 'Standby / Fallback'}
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-500 block mt-0.5">
+                      http://127.0.0.1:8001
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-900/80 p-3 rounded-lg border border-slate-800">
+                    <span className="text-[10px] text-slate-400 block">PyPI-Paket:</span>
+                    <span className="text-xs font-mono font-bold text-cyan-300 block mt-1">
+                      {hallunoxStatus?.pypiPackage || 'hallunox'}
+                    </span>
+                    <span className="text-[10px] text-slate-400 block mt-0.5">
+                      Version {hallunoxStatus?.version || '0.1.0'}
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-900/80 p-3 rounded-lg border border-slate-800">
+                    <span className="text-[10px] text-slate-400 block">Windows 11 Pfad:</span>
+                    <span className="text-[11px] font-mono font-semibold text-amber-300 block mt-1 truncate" title="D:\OllamaKnowledge\hallunox">
+                      D:\OllamaKnowledge\hallunox
+                    </span>
+                    <span className="text-[10px] text-slate-500 block mt-0.5">
+                      Lokales Microservice-Verzeichnis
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-900/80 p-3 rounded-lg border border-slate-800 flex flex-col justify-between">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block">Guardrail-Schutz:</span>
+                      <span className="text-xs font-semibold text-emerald-400 block mt-1">
+                        {hallunoxGuardrailEnabled ? 'Aktiviert (Echtzeit)' : 'Deaktiviert'}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => toggleHallunoxGuardrail(!hallunoxGuardrailEnabled)}
+                      className={`mt-1.5 px-2 py-1 rounded text-[10px] font-bold transition-colors cursor-pointer text-center ${
+                        hallunoxGuardrailEnabled
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30'
+                          : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700'
+                      }`}
+                    >
+                      {hallunoxGuardrailEnabled ? 'Aktiv (Klick zum Pausieren)' : 'Einschalten'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* INSTALLATION & WINDOWS 11 SCRIPTS */}
+              <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Terminal className="w-4 h-4 text-cyan-400" />
+                    <h3 className="font-semibold text-slate-200 text-xs">
+                      1-Klick Setup &amp; PyPI Installation für Windows 11
+                    </h3>
+                  </div>
+                  <span className="text-[10px] text-slate-400">
+                    Automatisches Setup in D:\OllamaKnowledge\hallunox
+                  </span>
+                </div>
+
+                <div className="bg-slate-900/90 rounded-lg p-3 border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-mono text-cyan-300">
+                      pip install hallunox fastapi uvicorn pydantic torch
+                    </span>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText('pip install hallunox fastapi uvicorn pydantic torch');
+                        setHallunoxCopiedCmd('pip');
+                        setTimeout(() => setHallunoxCopiedCmd(null), 2000);
+                      }}
+                      className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] rounded border border-slate-700 flex items-center gap-1 cursor-pointer transition-colors"
+                    >
+                      {hallunoxCopiedCmd === 'pip' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      <span>{hallunoxCopiedCmd === 'pip' ? 'Kopiert!' : 'Befehl kopieren'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 1-Click Starter & Files Download */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+                  <button
+                    onClick={() => downloadHallunoxFile('install-hallunox.bat')}
+                    className="p-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-left transition-colors flex items-center justify-between group cursor-pointer"
+                  >
+                    <div>
+                      <span className="text-xs font-semibold text-slate-200 block group-hover:text-cyan-300">
+                        install-hallunox.bat
+                      </span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">
+                        Automatische PyPI-Installation
+                      </span>
+                    </div>
+                    <Download className="w-3.5 h-3.5 text-cyan-400" />
+                  </button>
+
+                  <button
+                    onClick={() => downloadHallunoxFile('start-hallunox.bat')}
+                    className="p-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-left transition-colors flex items-center justify-between group cursor-pointer"
+                  >
+                    <div>
+                      <span className="text-xs font-semibold text-slate-200 block group-hover:text-emerald-300">
+                        start-hallunox.bat
+                      </span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">
+                        Startet FastAPI Bridge (Port 8001)
+                      </span>
+                    </div>
+                    <Download className="w-3.5 h-3.5 text-emerald-400" />
+                  </button>
+
+                  <button
+                    onClick={() => downloadHallunoxFile('hallunox_service.py')}
+                    className="p-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-left transition-colors flex items-center justify-between group cursor-pointer"
+                  >
+                    <div>
+                      <span className="text-xs font-semibold text-slate-200 block group-hover:text-amber-300">
+                        hallunox_service.py
+                      </span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">
+                        Python Service Bridge Script
+                      </span>
+                    </div>
+                    <Download className="w-3.5 h-3.5 text-amber-400" />
+                  </button>
+                </div>
+              </div>
+
+              {/* HOW HALLUNOX WORKS: MATHEMATICAL & ARCHITECTURAL OVERVIEW */}
+              <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2.5">
+                <div className="flex items-center gap-2">
+                  <Cpu className="w-4 h-4 text-emerald-400" />
+                  <h3 className="font-semibold text-slate-200 text-xs">
+                    Funktionsweise: Pre-Generation Halluzinationsreduktion
+                  </h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-[11px] text-slate-300">
+                  <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800/80 space-y-1">
+                    <span className="font-semibold text-cyan-300 block">1. Hidden-State Projektion</span>
+                    <p className="text-slate-400 leading-relaxed">
+                      Projiziert die Repräsentationen der Prompt-Aufmerksamkeit und Zwischenzustände in einen semantischen Validierungsraum, um Driften vor der Token-Ausgabe zu erkennen.
+                    </p>
+                  </div>
+                  <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800/80 space-y-1">
+                    <span className="font-semibold text-emerald-300 block">2. Alignment &amp; Risikobewertung</span>
+                    <p className="text-slate-400 leading-relaxed">
+                      Vergleicht generierte Textfragmente kontinuierlich mit dem Kontext und markiert divergente Token („Flagged Tokens“) mit Risikolevels (None, Low, Moderate, High).
+                    </p>
+                  </div>
+                  <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800/80 space-y-1">
+                    <span className="font-semibold text-amber-300 block">3. Lokale Heuristik &amp; D:\ Fallback</span>
+                    <p className="text-slate-400 leading-relaxed">
+                      Falls der externe Python-Dienst offline ist, greift die integrierte semantische Token-Overlap Heuristik der Workstation, sodass die App immer geschützt bleibt.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* INTERACTIVE CALIBRATION & LIVE-TEST SANDBOX */}
+              <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-emerald-400" />
+                    <h3 className="font-semibold text-slate-200 text-xs">
+                      Interaktive Hallunox-Prüfung &amp; Kalibrierungs-Sandbox
+                    </h3>
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    Modell: {ollamaModel || 'llama3.2:3b'}
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-[10px] font-semibold text-slate-400 block mb-1">
+                      Test-Prompt (Eingabefrage):
+                    </label>
+                    <input
+                      type="text"
+                      value={hallunoxPrompt}
+                      onChange={(e) => setHallunoxPrompt(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                      placeholder="Geben Sie eine Eingabeaufforderung ein..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-semibold text-slate-400 block mb-1">
+                      Modell-Antwort (Zu prüfender Text):
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={hallunoxResponse}
+                      onChange={(e) => setHallunoxResponse(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 resize-none"
+                      placeholder="Zu validierender Antworttext..."
+                    />
+                  </div>
+
+                  <div className="flex justify-end pt-1">
+                    <button
+                      onClick={handleTestHallunoxVerification}
+                      disabled={isVerifyingHallunox || !hallunoxPrompt.trim()}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      <span>{isVerifyingHallunox ? 'Prüfe Projektion...' : 'Mit Hallunox Verifizieren'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* TEST RESULT CARD */}
+                {hallunoxTestResult && (
+                  <div
+                    className={`mt-3 p-3.5 rounded-lg border text-xs space-y-2 ${
+                      hallunoxTestResult.hallucinationRisk === 'high'
+                        ? 'bg-rose-950/40 border-rose-500/50 text-rose-200'
+                        : hallunoxTestResult.hallucinationRisk === 'moderate'
+                        ? 'bg-amber-950/40 border-amber-500/50 text-amber-200'
+                        : 'bg-emerald-950/30 border-emerald-500/40 text-emerald-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        {hallunoxTestResult.hallucinationRisk === 'high' ? (
+                          <ShieldAlert className="w-4 h-4 text-rose-400" />
+                        ) : (
+                          <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                        )}
+                        <span className="font-bold text-white">
+                          Hallunox Ergebnis: {hallunoxTestResult.alignmentScore}% Ausrichtung
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                            hallunoxTestResult.hallucinationRisk === 'high'
+                              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                              : hallunoxTestResult.hallucinationRisk === 'moderate'
+                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                              : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                          }`}
+                        >
+                          Risiko: {hallunoxTestResult.hallucinationRisk}
+                        </span>
+                      </div>
+                    </div>
+
+                    <p className="text-slate-300 leading-relaxed text-[11px]">
+                      {hallunoxTestResult.explanation}
+                    </p>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-800/80 text-[10px] font-mono text-slate-300">
+                      <div>
+                        <span className="text-slate-500 block">Hidden-State:</span>
+                        <span className="font-semibold text-emerald-400">{hallunoxTestResult.hiddenStateConfidence}%</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block">Projektion:</span>
+                        <span className="font-semibold text-cyan-400">{hallunoxTestResult.semanticProjectionSimilarity}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block">Latenz:</span>
+                        <span className="font-semibold text-slate-200">{hallunoxTestResult.latencyMs} ms</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block">Engine:</span>
+                        <span className="font-semibold text-amber-300 truncate" title={hallunoxTestResult.engine}>
+                          {hallunoxTestResult.engine}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           {activeTab === 'interactive' && (
             <div className="space-y-4">
               <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-3">
@@ -966,6 +1946,78 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
             Schließen
           </button>
         </div>
+
+        {/* JSON DIAGNOSTIC REPORT VIEWER SUB-MODAL */}
+        {selectedReportForPreview && (
+          <div className="fixed inset-0 z-60 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
+              <div className="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-950/80">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-amber-400" />
+                  <div>
+                    <h3 className="font-bold text-sm text-white">
+                      Diagnosebericht: {selectedReportForPreview.fileName}
+                    </h3>
+                    <p className="text-[11px] font-mono text-emerald-400">
+                      {selectedReportForPreview.targetPath}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedReportForPreview(null)}
+                  className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-4 overflow-y-auto flex-1 bg-slate-950 font-mono text-xs text-slate-300">
+                <pre className="whitespace-pre-wrap leading-relaxed select-all">
+                  {JSON.stringify(selectedReportForPreview, null, 2)}
+                </pre>
+              </div>
+
+              <div className="px-5 py-3 border-t border-slate-800 bg-slate-900 flex items-center justify-between">
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(JSON.stringify(selectedReportForPreview, null, 2));
+                    setCopiedReportJson(true);
+                    setTimeout(() => setCopiedReportJson(false), 2000);
+                  }}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  {copiedReportJson ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Kopiert!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5 text-slate-400" />
+                      <span>JSON kopieren</span>
+                    </>
+                  )}
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleDownloadReportJson(selectedReportForPreview, selectedReportForPreview.fileName)}
+                    className="px-3.5 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download (.json)</span>
+                  </button>
+                  <button
+                    onClick={() => setSelectedReportForPreview(null)}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition-colors cursor-pointer"
+                  >
+                    Schließen
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

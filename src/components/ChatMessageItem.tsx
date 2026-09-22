@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
   Cpu,
   Sparkles,
@@ -14,6 +15,8 @@ import {
   SplitSquareVertical,
   Scale,
   HardDrive,
+  ShieldCheck,
+  ShieldAlert,
 } from 'lucide-react';
 import { ChatMessage } from '../types';
 
@@ -21,10 +24,72 @@ interface Props {
   message: ChatMessage;
 }
 
+/**
+ * Normalizes Markdown content to repair malformed or collapsed table rows.
+ * e.g. when LLMs output "| Col 1 | Col 2 | | :--- | :--- | | Val 1 | Val 2 |" on a single line.
+ */
+function normalizeMarkdownContent(content: string): string {
+  if (!content) return '';
+  // Fix double pipes separating table rows on the same line
+  let normalized = content.replace(/\|\s*\|\s*(?=[^|\n]*\|)/g, '|\n|');
+  // Fix table dividers concatenated without newline e.g. "| text | | :---"
+  normalized = normalized.replace(/\|\s*\|\s*(:?-+:?)/g, '|\n| $1');
+  // Fix table row ends immediately adjacent to next row start
+  normalized = normalized.replace(/\|\s*\|/g, '|\n|');
+  return normalized;
+}
+
+const markdownComponents = {
+  table: ({ children, ...props }: any) => (
+    <div className="overflow-x-auto my-3 rounded-xl border border-slate-700/80 bg-slate-950/70 shadow-sm">
+      <table className="w-full text-left border-collapse text-xs text-slate-200" {...props}>
+        {children}
+      </table>
+    </div>
+  ),
+  thead: ({ children, ...props }: any) => (
+    <thead className="bg-slate-800/90 text-cyan-300 border-b border-slate-700" {...props}>
+      {children}
+    </thead>
+  ),
+  tbody: ({ children, ...props }: any) => (
+    <tbody className="divide-y divide-slate-800/70" {...props}>
+      {children}
+    </tbody>
+  ),
+  tr: ({ children, ...props }: any) => (
+    <tr className="even:bg-slate-900/40 odd:bg-slate-950/40 hover:bg-slate-800/30 transition-colors" {...props}>
+      {children}
+    </tr>
+  ),
+  th: ({ children, ...props }: any) => (
+    <th className="px-3.5 py-2.5 font-semibold text-xs text-cyan-300 border-r border-slate-800/80 last:border-r-0" {...props}>
+      {children}
+    </th>
+  ),
+  td: ({ children, ...props }: any) => (
+    <td className="px-3.5 py-2 text-xs text-slate-200 border-r border-slate-800/60 last:border-r-0 leading-relaxed" {...props}>
+      {children}
+    </td>
+  ),
+  code: ({ inline, className, children, ...props }: any) => {
+    return inline ? (
+      <code className="px-1.5 py-0.5 rounded bg-slate-800 text-cyan-300 font-mono text-[11px] border border-slate-700/60" {...props}>
+        {children}
+      </code>
+    ) : (
+      <code className="block p-3 rounded-lg bg-slate-950 text-slate-200 font-mono text-xs overflow-x-auto border border-slate-800 my-2" {...props}>
+        {children}
+      </code>
+    );
+  },
+};
+
 export const ChatMessageItem: React.FC<Props> = ({ message }) => {
   const [copied, setCopied] = useState(false);
   const [showOllamaDetails, setShowOllamaDetails] = useState(false);
   const [showGeminiDetails, setShowGeminiDetails] = useState(false);
+  const [showHallunoxDetails, setShowHallunoxDetails] = useState(false);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -128,6 +193,74 @@ export const ChatMessageItem: React.FC<Props> = ({ message }) => {
         </div>
       )}
 
+      {/* Hallunox Anti-Hallucination Guardrail Badge */}
+      {meta?.hallunoxVerification && (
+        <div
+          className={`mt-2.5 rounded-lg border text-xs overflow-hidden transition-all ${
+            meta.hallunoxVerification.hallucinationRisk === 'high'
+              ? 'bg-rose-950/40 border-rose-500/50 text-rose-200'
+              : meta.hallunoxVerification.hallucinationRisk === 'moderate'
+              ? 'bg-amber-950/40 border-amber-500/50 text-amber-200'
+              : 'bg-emerald-950/30 border-emerald-500/40 text-emerald-200'
+          }`}
+        >
+          <div className="px-3 py-2 flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              {meta.hallunoxVerification.hallucinationRisk === 'high' ? (
+                <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
+              ) : (
+                <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+              )}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="font-semibold text-slate-100">Hallunox (PyPI) Guardrail:</span>
+                <span className="font-mono font-bold text-emerald-400">
+                  {meta.hallunoxVerification.alignmentScore}% Ausrichtung
+                </span>
+                <span className="text-slate-400">•</span>
+                <span className="text-[11px] text-slate-300">
+                  Hidden-State: {meta.hallunoxVerification.hiddenStateConfidence}%
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span
+                className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                  meta.hallunoxVerification.hallucinationRisk === 'high'
+                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                    : meta.hallunoxVerification.hallucinationRisk === 'moderate'
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                    : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                }`}
+              >
+                Risiko: {meta.hallunoxVerification.hallucinationRisk}
+              </span>
+              <button
+                onClick={() => setShowHallunoxDetails(!showHallunoxDetails)}
+                className="text-[11px] text-cyan-300 hover:text-cyan-100 flex items-center gap-0.5 cursor-pointer underline"
+              >
+                <span>{showHallunoxDetails ? 'Weniger' : 'Details'}</span>
+                {showHallunoxDetails ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Expandable Hallunox Explanation & Metrics */}
+          {showHallunoxDetails && (
+            <div className="px-3 py-2.5 bg-slate-950/70 border-t border-slate-800/80 text-[11px] text-slate-300 space-y-1.5">
+              <p className="leading-relaxed">{meta.hallunoxVerification.explanation}</p>
+              <div className="flex flex-wrap items-center gap-3 pt-1 text-[10px] font-mono text-slate-400">
+                <span>Projektions-Ähnlichkeit: {meta.hallunoxVerification.semanticProjectionSimilarity}</span>
+                <span>•</span>
+                <span>Latenz: {meta.hallunoxVerification.latencyMs}ms</span>
+                <span>•</span>
+                <span>Engine: {meta.hallunoxVerification.engine}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Main Content Render */}
       {isSideBySide ? (
         // Side-by-side split grid
@@ -142,7 +275,9 @@ export const ChatMessageItem: React.FC<Props> = ({ message }) => {
               <span className="text-[10px] text-slate-400">{meta?.ollamaPart?.durationMs}ms</span>
             </div>
             <div className="text-xs text-slate-200 leading-relaxed max-w-none prose prose-invert">
-              <Markdown>{meta?.ollamaPart?.content || 'Keine Antwort'}</Markdown>
+              <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                {normalizeMarkdownContent(meta?.ollamaPart?.content || 'Keine Antwort')}
+              </Markdown>
             </div>
           </div>
 
@@ -156,7 +291,9 @@ export const ChatMessageItem: React.FC<Props> = ({ message }) => {
               <span className="text-[10px] text-slate-400">{meta?.geminiPart?.durationMs}ms</span>
             </div>
             <div className="text-xs text-slate-200 leading-relaxed max-w-none prose prose-invert">
-              <Markdown>{meta?.geminiPart?.content || 'Keine Antwort'}</Markdown>
+              <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                {normalizeMarkdownContent(meta?.geminiPart?.content || 'Keine Antwort')}
+              </Markdown>
             </div>
           </div>
         </div>
@@ -179,8 +316,10 @@ export const ChatMessageItem: React.FC<Props> = ({ message }) => {
                 </div>
               </button>
               {showOllamaDetails && (
-                <div className="px-3.5 py-3 border-t border-slate-800/80 bg-slate-950 text-xs text-slate-300 whitespace-pre-wrap leading-relaxed">
-                  {meta.ollamaPart.content}
+                <div className="px-3.5 py-3 border-t border-slate-800/80 bg-slate-950 text-xs text-slate-300 leading-relaxed prose prose-invert max-w-none">
+                  <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                    {normalizeMarkdownContent(meta.ollamaPart.content)}
+                  </Markdown>
                 </div>
               )}
             </div>
@@ -193,7 +332,9 @@ export const ChatMessageItem: React.FC<Props> = ({ message }) => {
               <span>Stufe 2: Veredelte Ausarbeitung (Google Gemini mit High Thinking)</span>
             </div>
             <div className="text-sm text-slate-200 leading-relaxed prose prose-invert max-w-none">
-              <Markdown>{message.content}</Markdown>
+              <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                {normalizeMarkdownContent(message.content)}
+              </Markdown>
             </div>
           </div>
         </div>
@@ -222,28 +363,40 @@ export const ChatMessageItem: React.FC<Props> = ({ message }) => {
           </div>
 
           {showOllamaDetails && meta?.ollamaPart && (
-            <div className="p-3 rounded-lg bg-slate-950 border border-emerald-900/50 text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">
-              <strong>Ollama Standpunkt:</strong>
-              <div className="mt-1">{meta.ollamaPart.content}</div>
+            <div className="p-3 rounded-lg bg-slate-950 border border-emerald-900/50 text-xs text-slate-300 leading-relaxed prose prose-invert max-w-none">
+              <strong className="text-emerald-300">Ollama Standpunkt:</strong>
+              <div className="mt-1">
+                <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                  {normalizeMarkdownContent(meta.ollamaPart.content)}
+                </Markdown>
+              </div>
             </div>
           )}
 
           {showGeminiDetails && meta?.geminiPart && (
-            <div className="p-3 rounded-lg bg-slate-950 border border-cyan-900/50 text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">
-              <strong>Gemini Standpunkt:</strong>
-              <div className="mt-1">{meta.geminiPart.content}</div>
+            <div className="p-3 rounded-lg bg-slate-950 border border-cyan-900/50 text-xs text-slate-300 leading-relaxed prose prose-invert max-w-none">
+              <strong className="text-cyan-300">Gemini Standpunkt:</strong>
+              <div className="mt-1">
+                <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                  {normalizeMarkdownContent(meta.geminiPart.content)}
+                </Markdown>
+              </div>
             </div>
           )}
 
           {/* Unified Consensus Text */}
           <div className="text-sm text-slate-200 leading-relaxed prose prose-invert max-w-none pt-1">
-            <Markdown>{message.content}</Markdown>
+            <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+              {normalizeMarkdownContent(message.content)}
+            </Markdown>
           </div>
         </div>
       ) : (
         // Standard Direct Message Text
         <div className="mt-3 text-sm text-slate-200 leading-relaxed prose prose-invert max-w-none">
-          <Markdown>{message.content}</Markdown>
+          <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+            {normalizeMarkdownContent(message.content)}
+          </Markdown>
         </div>
       )}
     </div>

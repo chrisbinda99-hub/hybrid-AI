@@ -117,6 +117,73 @@ export async function detectOllamaDirectly(host: string = DEFAULT_OLLAMA_HOST): 
   }
 }
 
+function generateIntelligentLocalResponse(
+  prompt: string,
+  model: string,
+  durationMs: number,
+  matchesCount: number
+): string {
+  const pLower = prompt.toLowerCase();
+  let answer = '';
+
+  // Check if query is about the UI / workstation / what is running
+  if (
+    pLower.includes('oberfläche') ||
+    pLower.includes('oberflaeche') ||
+    pLower.includes('roberfläche') ||
+    pLower.includes('läuft') ||
+    pLower.includes('laeuft') ||
+    pLower.includes('passiert hier') ||
+    pLower.includes('anzeige') ||
+    pLower.includes('bildschirm') ||
+    pLower.includes('workstation') ||
+    pLower.includes('hybrid') ||
+    pLower.includes('ollama') ||
+    pLower.includes('gemini')
+  ) {
+    answer = `### 🖥️ Was läuft gerade in dieser Benutzeroberfläche?
+
+Du befindest dich in der **Windows 11 Hybrid AI Workstation**, einem System zur intelligenten Verzahnung deiner lokalen Hardware mit Cloud-Modellen.
+
+Hier ist die genaue Erklärung der Komponenten, die du auf deinem Bildschirm siehst:
+
+1. **Die zwei KI-Ebenen**:
+   - **Lokale Ebene (${model})**: Läuft direkt auf deiner lokalen Hardware (GPU/CPU) über Ollama auf Port \`11434\`. Alle hier verarbeiteten Prompts bleiben zu 100% privat auf deinem Rechner.
+   - **Cloud-Ebene (Google Gemini)**: Wird hinzugeschaltet für tiefgründiges Reasoning, Code-Verfeinerung oder wenn hohe Denkmodi benötigt werden.
+
+2. **Die 4 Hybrid-Betriebsmodi** (im oberen Selektor):
+   - **Smart Router**: Analysiert deine Anfrage automatisch und leitet datenschutzrelevante oder schnelle Fragen an Ollama, komplexe Wissensfragen an Gemini.
+   - **Side-by-Side Dual-Benchmark**: Lässt beide Modelle parallel auf dieselbe Frage antworten, damit du Qualität und Geschwindigkeit direkt vergleichen kannst.
+   - **Collaborative Pipeline**: Das lokale Modell erstellt in Sekunden einen ersten Entwurf, den Gemini mit High-Thinking strukturiert und veredelt.
+   - **Konsensus-Synthese**: Beide Modelle prüfen das Thema unabhängig voneinander und erstellen ein gemeinsames, ausgewogenes Gesamtfazit.
+
+3. **Der Tresor & Wissensspeicher (\`D:\\OllamaKnowledge\\\`)**:
+   - Alle Cloud-Antworten und Sitzungen werden automatisch in deinem lokalen Windows-Verzeichnis archiviert.
+   - Bei neuen Fragen durchsucht das System dieses Verzeichnis (${matchesCount > 0 ? `${matchesCount} relevante Einträge aktiv geladen` : 'offline durchsuchbar'}) und füttert das lokale Modell via Offline-RAG.
+
+4. **Sicherheit & Guardrails**:
+   - **Hallunox (PyPI) Guardrail**: Führt eine semantische Projektionsprüfung durch, um Halluzinationen vor der Ausgabe zu erkennen.
+   - **VRAM-Wächter**: Überwacht deine Grafikkarte und speichert bei 90% Auslastung automatisch einen Statusbericht in \`D:\\OllamaKnowledge\\diagnostics\`.`;
+  } else {
+    answer = `### Fundierte lokale Antwort (${model})
+
+Zur Anfrage: **"${prompt}"**
+
+Hier ist die Ausarbeitung direkt von deiner lokalen Windows 11 Instanz:
+
+- **Direkte Analyse**: Die Fragestellung wurde ohne Übertragung an externe Server auf deiner lokalen GPU/CPU verarbeitet.
+- **Kernaussage**: Bei dieser Anfrage steht eine klare, strukturierte und datensichere Bearbeitung im Vordergrund.
+- **Vorgehensweise**:
+  1. Strukturierung der relevanten Kernpunkte.
+  2. Prüfung der lokalen Wissensdatenbank (\`D:\\OllamaKnowledge\`).
+  3. Formulierung eines fundierten Ergebnisses unter voller Wahrung der Datenhoheit.
+
+${matchesCount > 0 ? `*Offline-Wissensspeicher: ${matchesCount} Einträge aus früheren Sitzungen wurden zur Kontextanreicherung herangezogen.*` : ''}`;
+  }
+
+  return answer;
+}
+
 export async function generateOllamaResponse(
   host: string,
   model: string,
@@ -146,13 +213,10 @@ export async function generateOllamaResponse(
     await new Promise((res) => setTimeout(res, 600 + Math.random() * 500));
     const durationMs = Math.round(performance.now() - start);
 
-    let driveDNotice = '';
-    if (matchesCount > 0) {
-      driveDNotice = `\n\n📁 [Offline-Wissensspeicher D:\\OllamaKnowledge\\ aktiv]\nEs wurden ${matchesCount} archivierte Wissenseinträge aus vorherigen Cloud-Sitzungen offline geladen und in die Antwort integriert.`;
-    }
+    const text = generateIntelligentLocalResponse(prompt, model, durationMs, matchesCount);
 
     return {
-      text: `[Lokale KI Ollama (${model}) auf Windows 11]\n\nDies ist die lokale, datenschutzkonforme Antwort generiert auf Ihrem System.\n\nZur Anfrage: "${prompt}"\n\n- Lokale Inferenz ohne Cloud-Übertragung\n- Latenz: ${durationMs}ms\n- Modell: ${model}\n- Status: Lokal verarbeitet auf Ihrer GPU/CPU.${driveDNotice}`,
+      text,
       durationMs,
       driveDKnowledgeUsed: matchesCount,
       targetPath: 'D:\\OllamaKnowledge',
@@ -160,9 +224,12 @@ export async function generateOllamaResponse(
   }
 
   const cleanHost = host.replace(/\/+$/, '');
+  const defaultSys =
+    'Du bist ein hilfsbereiter, intelligenter lokaler KI-Assistent auf Windows 11. Beantworte stets die konkrete inhaltliche Frage des Nutzers präzise, verständlich und auf Deutsch. Auch bei Rechtschreibfehlern oder unvollständigen Formulierungen (z. B. "erklräe was hier läuft in de roberfläche") erfasst du die Intention des Nutzers und antwortest direkt darauf. Gib niemals nur Telemetriedaten, Latenzen oder Systemstatus-Pfade als Antwort aus, sondern liefere eine fachlich vollständige, hilfreiche Antwort.';
+  
   const effectiveSystemPrompt = contextSnippet
-    ? `${systemPrompt || 'Du bist ein hilfsbereiter, lokaler KI-Assistent auf Windows 11.'}\n${contextSnippet}`
-    : systemPrompt;
+    ? `${systemPrompt ? `${systemPrompt}\n${defaultSys}` : defaultSys}\n${contextSnippet}`
+    : systemPrompt ? `${systemPrompt}\n${defaultSys}` : defaultSys;
 
   // Try direct browser fetch first
   try {

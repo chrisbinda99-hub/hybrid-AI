@@ -67,6 +67,7 @@ export interface ChatMessage {
     savedToDriveD?: boolean;
     targetPath?: string;
     driveDKnowledgeUsed?: number;
+    hallunoxVerification?: HallunoxVerificationResult;
   };
 }
 
@@ -157,5 +158,33 @@ export interface GpuStatusInfo {
   testedModels: VramModelProfile[];
   cudaOrDirectMlDetected: boolean;
   lastUpdated: string;
+}
+
+export interface HallunoxStatus {
+  installed: boolean;
+  serviceRunning: boolean;
+  url: string;
+  version?: string;
+  mode: 'live' | 'simulation' | 'offline';
+  backend: 'direct_python' | 'fastapi_bridge';
+  lastChecked: string;
+  message?: string;
+  pypiPackage: string;
+  installCommand: string;
+}
+
+export interface HallunoxVerificationResult {
+  verified: boolean;
+  alignmentScore: number; // 0 - 100%
+  hallucinationRisk: 'none' | 'low' | 'moderate' | 'high';
+  hiddenStateConfidence: number; // 0 - 100%
+  semanticProjectionSimilarity: number; // 0.0 - 1.0
+  flaggedTokens: string[];
+  explanation: string;
+  mitigationApplied: boolean;
+  calibratedPrompt?: string;
+  latencyMs: number;
+  timestamp: string;
+  engine: 'hallunox-pypi' | 'hallunox-bridge-fallback';
 }
 

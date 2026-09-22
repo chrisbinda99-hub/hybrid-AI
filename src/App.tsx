@@ -31,6 +31,7 @@ import {
 } from './services/geminiService';
 import { fetchDriveDStatus } from './services/knowledgeService';
 import { analyzePromptForRouting } from './services/hybridRouter';
+import { verifyWithHallunox } from './services/hallunoxService';
 import {
   Cpu,
   Sparkles,
@@ -220,6 +221,22 @@ export default function App() {
     localStorage.setItem('hybrid_ollama_host', newHost);
   };
 
+  // Hallunox Anti-Hallucination Guardrail Check
+  const checkHallunoxGuardrail = async (prompt: string, response: string, model: string) => {
+    try {
+      const enabled = localStorage.getItem('hybrid_hallunox_guardrail_enabled') !== 'false';
+      if (!enabled) return undefined;
+      return await verifyWithHallunox({
+        prompt,
+        response,
+        model,
+        threshold: 0.85,
+      });
+    } catch {
+      return undefined;
+    }
+  };
+
   // Main Chat / Hybrid Dispatcher
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;
@@ -249,10 +266,12 @@ export default function App() {
             customHost,
             activeOllamaModel,
             text,
-            'Du bist eine lokale KI, die auf Windows 11 läuft. Antworte präzise und datenschutzbewusst.',
+            'Du bist eine hilfsbereite lokale KI auf Windows 11. Beantworte stets die konkrete inhaltliche Frage des Nutzers präzise, verständlich und auf Deutsch. Auch bei Tippfehlern erfasst du die Intention und antwortest direkt.',
             isDemoMode,
             true // Enable Drive D Knowledge
           );
+
+          const hallunoxVerification = await checkHallunoxGuardrail(text, ollamaRes.text, activeOllamaModel);
 
           const assistantMsg: ChatMessage = {
             id: `assistant-${Date.now()}`,
@@ -267,6 +286,7 @@ export default function App() {
               routedReason: decision.reason,
               driveDKnowledgeUsed: ollamaRes.driveDKnowledgeUsed,
               targetPath: ollamaRes.targetPath,
+              hallunoxVerification,
             },
           };
           setMessages((prev) => [...prev, assistantMsg]);
@@ -279,6 +299,8 @@ export default function App() {
               undefined,
               enableThinking || activeGeminiModel === 'gemini-3.1-pro-preview'
             );
+
+            const hallunoxVerification = await checkHallunoxGuardrail(text, geminiRes.text, geminiRes.model);
 
             const assistantMsg: ChatMessage = {
               id: `assistant-${Date.now()}`,
@@ -293,6 +315,7 @@ export default function App() {
                 routedReason: geminiRes.notes ? `${decision.reason} (${geminiRes.notes})` : decision.reason,
                 savedToDriveD: geminiRes.savedToDriveD ?? true,
                 targetPath: geminiRes.targetPath || 'D:\\OllamaKnowledge\\',
+                hallunoxVerification,
               },
             };
             setMessages((prev) => [...prev, assistantMsg]);
@@ -302,10 +325,12 @@ export default function App() {
               customHost,
               activeOllamaModel,
               text,
-              'Du bist eine lokale KI, die auf Windows 11 läuft. Antworte präzise und datenschutzbewusst.',
+              'Du bist eine hilfsbereite lokale KI auf Windows 11. Beantworte stets die konkrete inhaltliche Frage des Nutzers präzise, verständlich und auf Deutsch.',
               isDemoMode,
               true
             );
+
+            const hallunoxVerification = await checkHallunoxGuardrail(text, ollamaRes.text, activeOllamaModel);
 
             const assistantMsg: ChatMessage = {
               id: `assistant-${Date.now()}`,
@@ -320,6 +345,7 @@ export default function App() {
                 routedReason: 'Automatischer Failover bei Cloud-Auslastung',
                 driveDKnowledgeUsed: ollamaRes.driveDKnowledgeUsed,
                 targetPath: ollamaRes.targetPath,
+                hallunoxVerification,
               },
             };
             setMessages((prev) => [...prev, assistantMsg]);
@@ -360,6 +386,12 @@ export default function App() {
         const geminiDuration =
           geminiResult.status === 'fulfilled' ? geminiResult.value.durationMs : 0;
 
+        const hallunoxVerification = await checkHallunoxGuardrail(
+          text,
+          `${ollamaContent}\n\n${geminiContent}`,
+          `${activeOllamaModel} & ${activeGeminiModel}`
+        );
+
         const assistantMsg: ChatMessage = {
           id: `assistant-${Date.now()}`,
           role: 'assistant',
@@ -373,6 +405,7 @@ export default function App() {
             savedToDriveD: true,
             targetPath: 'D:\\OllamaKnowledge\\',
             driveDKnowledgeUsed: ollamaKnowledgeUsed,
+            hallunoxVerification,
             ollamaPart: {
               content: ollamaContent,
               model: activeOllamaModel,
@@ -392,7 +425,7 @@ export default function App() {
           customHost,
           activeOllamaModel,
           text,
-          'Erstelle einen ersten strukturierten Entwurf zu dieser Anfrage.',
+          'Erstelle einen ersten inhaltlich fundierten, strukturierten Entwurf zu dieser Nutzeranfrage. Beantworte die Frage direkt und verständlich.',
           isDemoMode,
           true
         );
@@ -407,6 +440,7 @@ export default function App() {
         );
 
         const totalDuration = localDraft.durationMs + refined.durationMs;
+        const hallunoxVerification = await checkHallunoxGuardrail(text, refined.text, refined.model);
 
         const assistantMsg: ChatMessage = {
           id: `assistant-${Date.now()}`,
@@ -421,6 +455,7 @@ export default function App() {
             savedToDriveD: refined.savedToDriveD ?? true,
             targetPath: refined.targetPath || 'D:\\OllamaKnowledge\\',
             driveDKnowledgeUsed: localDraft.driveDKnowledgeUsed,
+            hallunoxVerification,
             ollamaPart: {
               content: localDraft.text,
               model: activeOllamaModel,
@@ -440,7 +475,7 @@ export default function App() {
           customHost,
           activeOllamaModel,
           text,
-          'Beantworte diese Frage fundiert aus lokaler Perspektive.',
+          'Beantworte diese Frage fundiert, direkt und verständlich aus deiner lokalen Modell-Perspektive.',
           isDemoMode,
           true
         );
@@ -452,6 +487,8 @@ export default function App() {
           activeGeminiModel,
           enableThinking || activeGeminiModel === 'gemini-3.1-pro-preview'
         );
+
+        const hallunoxVerification = await checkHallunoxGuardrail(text, consensusRes.text, consensusRes.model);
 
         const assistantMsg: ChatMessage = {
           id: `assistant-${Date.now()}`,
@@ -466,6 +503,7 @@ export default function App() {
             savedToDriveD: consensusRes.savedToDriveD ?? true,
             targetPath: consensusRes.targetPath || 'D:\\OllamaKnowledge\\',
             driveDKnowledgeUsed: localResponse.driveDKnowledgeUsed,
+            hallunoxVerification,
             ollamaPart: {
               content: localResponse.text,
               model: activeOllamaModel,

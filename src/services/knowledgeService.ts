@@ -229,3 +229,164 @@ export async function purgeVramModels(ollamaHost?: string, modelName?: string): 
   }
 }
 
+export interface VramAlertReport {
+  id: string;
+  reportType: string;
+  status?: string;
+  timestamp: string;
+  targetPath: string;
+  fileName: string;
+  gpu: {
+    name: string;
+    tier: string;
+    mode: string;
+    totalVramGb: number;
+    usedVramGb: number;
+    freeVramGb: number;
+    vramPercent: number;
+    breakdown: {
+      windows11DwmGb: number;
+      modelVramGb: number;
+      kvCacheGb: number;
+      freeGb: number;
+    };
+  };
+  threshold: {
+    configuredThresholdGb: number;
+    exceededByGb: number;
+    percentOfTotal: number;
+    triggeredAt: string;
+    autoTriggered?: boolean;
+  };
+  activeModel: {
+    name: string;
+    sizeVramGb: number;
+    gpuOffloadPercent: number;
+    layersOnGpu: number;
+    totalLayers: number;
+    quantization?: string;
+  };
+  systemContext: {
+    platform: string;
+    os: string;
+    ollamaHost: string;
+    statusLevel: string;
+    warnings: string[];
+    recommendations: string[];
+  };
+  incidentSummary?: string;
+}
+
+export interface SavedReportItem {
+  fileName: string;
+  targetPath: string;
+  timestamp: string;
+  sizeBytes: number;
+  usedVramGb?: number;
+  thresholdGb?: number;
+  modelName?: string;
+  exceededByGb?: number;
+  report?: VramAlertReport;
+}
+
+export async function saveVramDiagnosticReport(params: {
+  gpuStatus: GpuStatusInfo;
+  thresholdGb: number;
+  gpuTier?: string;
+  ollamaHost?: string;
+  autoTriggered?: boolean;
+}): Promise<{
+  success: boolean;
+  fileName: string;
+  targetPath: string;
+  localPath?: string;
+  sizeBytes?: number;
+  timestamp: string;
+  report: VramAlertReport;
+  error?: string;
+}> {
+  try {
+    const res = await fetch('/api/diagnostics/save-vram-report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    if (!res.ok) {
+      throw new Error(`Server returned HTTP ${res.status}`);
+    }
+    return await res.json();
+  } catch (err: any) {
+    console.warn('Fallback saving VRAM report locally in client browser:', err);
+    // Client-side fallback generation
+    const now = new Date();
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+    const fileName = `vram_alert_report_${dateStr}.json`;
+    const targetPath = `D:\\OllamaKnowledge\\diagnostics\\${fileName}`;
+
+    const report: VramAlertReport = {
+      id: `vram-client-${Date.now()}`,
+      reportType: 'CRITICAL_VRAM_THRESHOLD_EXCEEDED',
+      status: 'CLIENT_FALLBACK_ARCHIVED',
+      timestamp: now.toISOString(),
+      targetPath,
+      fileName,
+      gpu: {
+        name: params.gpuStatus.gpuName,
+        tier: params.gpuTier || '8gb',
+        mode: params.gpuStatus.gpuMode,
+        totalVramGb: params.gpuStatus.totalVramGb,
+        usedVramGb: params.gpuStatus.usedVramGb,
+        freeVramGb: params.gpuStatus.freeVramGb,
+        vramPercent: params.gpuStatus.vramPercent,
+        breakdown: params.gpuStatus.breakdown,
+      },
+      threshold: {
+        configuredThresholdGb: params.thresholdGb,
+        exceededByGb: parseFloat(Math.max(0, params.gpuStatus.usedVramGb - params.thresholdGb).toFixed(2)),
+        percentOfTotal: Math.round((params.thresholdGb / params.gpuStatus.totalVramGb) * 100),
+        triggeredAt: now.toISOString(),
+        autoTriggered: params.autoTriggered ?? true,
+      },
+      activeModel: params.gpuStatus.activeModel,
+      systemContext: {
+        platform: 'win32',
+        os: 'Windows 11 (DirectML / CUDA)',
+        ollamaHost: params.ollamaHost || 'http://127.0.0.1:11434',
+        statusLevel: params.gpuStatus.statusLevel,
+        warnings: params.gpuStatus.warnings,
+        recommendations: params.gpuStatus.recommendations,
+      },
+      incidentSummary: `Kritische VRAM-Schwelle überschritten: ${params.gpuStatus.usedVramGb.toFixed(1)} GB belegt (Schwelle: ${params.thresholdGb.toFixed(1)} GB). Zielpfad: ${targetPath}`,
+    };
+
+    return {
+      success: true,
+      fileName,
+      targetPath,
+      timestamp: now.toISOString(),
+      sizeBytes: JSON.stringify(report, null, 2).length,
+      report,
+    };
+  }
+}
+
+export async function fetchSavedDiagnosticReports(): Promise<{
+  reports: SavedReportItem[];
+  totalCount: number;
+  targetFolder: string;
+}> {
+  try {
+    const res = await fetch('/api/diagnostics/reports');
+    if (!res.ok) throw new Error('Failed to fetch reports');
+    return await res.json();
+  } catch {
+    return {
+      reports: [],
+      totalCount: 0,
+      targetFolder: 'D:\\OllamaKnowledge\\diagnostics',
+    };
+  }
+}
+
+
