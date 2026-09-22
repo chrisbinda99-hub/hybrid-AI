@@ -17,6 +17,7 @@ import {
   HardDrive,
   ShieldCheck,
   ShieldAlert,
+  Zap,
 } from 'lucide-react';
 import { ChatMessage } from '../types';
 
@@ -164,8 +165,43 @@ export const ChatMessageItem: React.FC<Props> = ({ message }) => {
         </button>
       </div>
 
-      {/* Routed Reason Badge if smart router */}
-      {meta?.routedReason && (
+      {/* Qwen-Decider Millisecond Decision Head Banner */}
+      {meta?.qwenDecider && (
+        <div className="mt-2.5 px-3 py-2 rounded-lg bg-violet-950/40 border border-violet-600/50 text-xs text-violet-200 flex flex-col gap-1.5 shadow-sm">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0 animate-pulse" />
+              <span className="font-semibold text-slate-100">Qwen-Decider ({meta.qwenDecider.model}):</span>
+              <span className="font-mono text-cyan-300 font-medium">
+                {meta.qwenDecider.engine.toUpperCase()} ({Math.round(meta.qwenDecider.confidence * 100)}% Konfidenz)
+              </span>
+              <span className="text-slate-400">•</span>
+              <span className="text-[11px] text-emerald-400 font-mono">
+                Latenz: {meta.qwenDecider.latencyMs}ms
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-[11px]">
+              <span className="px-2 py-0.5 rounded bg-violet-900/60 border border-violet-500/40 text-violet-200">
+                Datenschutz: {meta.qwenDecider.privacyScore}%
+              </span>
+              <span className="px-2 py-0.5 rounded bg-cyan-900/60 border border-cyan-500/40 text-cyan-200">
+                Komplexität: {meta.qwenDecider.complexityScore}%
+              </span>
+              {meta.qwenDecider.requiresDriveDKnowledge && (
+                <span className="px-2 py-0.5 rounded bg-amber-900/60 border border-amber-500/40 text-amber-200">
+                  D:\-RAG
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="text-[11px] text-slate-300 flex items-start gap-1.5 pl-5">
+            <span>{meta.qwenDecider.reason}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Routed Reason Badge if smart router (fallback if no Qwen decider) */}
+      {!meta?.qwenDecider && meta?.routedReason && (
         <div className="mt-2.5 px-3 py-1.5 rounded-lg bg-slate-950/70 border border-slate-800 text-xs text-slate-300 flex items-start gap-2">
           <Brain className="w-3.5 h-3.5 text-cyan-400 mt-0.5 shrink-0" />
           <span>{meta.routedReason}</span>

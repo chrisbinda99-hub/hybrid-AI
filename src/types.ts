@@ -68,7 +68,22 @@ export interface ChatMessage {
     targetPath?: string;
     driveDKnowledgeUsed?: number;
     hallunoxVerification?: HallunoxVerificationResult;
+    qwenDecider?: QwenDeciderEvaluation;
   };
+}
+
+export interface QwenDeciderEvaluation {
+  model: string;              // e.g. "qwen2.5:0.5b (Qwen-Decider)" or "qwen3.5:0.5b"
+  latencyMs: number;          // e.g. 14ms
+  engine: 'ollama' | 'gemini' | 'hybrid';
+  confidence: number;         // 0.0 - 1.0 (e.g. 0.98)
+  reason: string;
+  privacyScore: number;       // 0 - 100%
+  complexityScore: number;    // 0 - 100%
+  recommendedMode: HybridMode; // smart_router, collaborative, consensus, side_by_side
+  requiresDriveDKnowledge: boolean;
+  requiresThinking: boolean;
+  latentFeatures?: string[];
 }
 
 export interface HybridRoutingDecision {
@@ -81,6 +96,7 @@ export interface HybridRoutingDecision {
     isCodingTask: boolean;
     isGeneralChat: boolean;
   };
+  qwenDecider?: QwenDeciderEvaluation;
 }
 
 export interface KnowledgeEntry {
@@ -186,5 +202,15 @@ export interface HallunoxVerificationResult {
   latencyMs: number;
   timestamp: string;
   engine: 'hallunox-pypi' | 'hallunox-bridge-fallback';
+}
+
+export interface QwenDeciderStatus {
+  serviceRunning: boolean;
+  deciderModelAvailable: boolean;
+  activeModel: string;
+  availableModels: string[];
+  ollamaConnected: boolean;
+  targetLatencyMs: number;
+  lastChecked: string;
 }
 

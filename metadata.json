@@ -1,6 +1,6 @@
 {
   "name": "Ollama Gemini Hybrid Workstation",
-  "description": "Hybrid-KI-System für Windows 11 zur automatischen Erkennung lokaler Ollama-Modelle, GPU-Beschleunigungs-Modus mit VRAM-Wächter und nahtlosem Verbund mit Google Gemini Studio inklusive Desktop-Starter.",
+  "description": "Hybrid-KI-System für Windows 11 zur automatischen Erkennung lokaler Ollama-Modelle, GPU-Beschleunigungs-Modus mit VRAM-Wächter, Qwen-Decider SLM-Routing und nahtlosem Verbund mit Google Gemini Studio inklusive Desktop-Starter.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

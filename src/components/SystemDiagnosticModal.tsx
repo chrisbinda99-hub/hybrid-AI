@@ -31,8 +31,17 @@ import {
   Eye,
   Copy,
   FolderCheck,
+  Brain,
 } from 'lucide-react';
-import { DiagnosticTestResult, GpuStatusInfo, GpuAccelerationMode, HallunoxStatus, HallunoxVerificationResult } from '../types';
+import {
+  DiagnosticTestResult,
+  GpuStatusInfo,
+  GpuAccelerationMode,
+  HallunoxStatus,
+  HallunoxVerificationResult,
+  QwenDeciderStatus,
+  QwenDeciderEvaluation,
+} from '../types';
 import {
   runSystemDiagnostics,
   DiagnosticSuiteResult,
@@ -44,28 +53,94 @@ import {
   SavedReportItem,
 } from '../services/knowledgeService';
 import { fetchHallunoxStatus, verifyWithHallunox, downloadHallunoxFile } from '../services/hallunoxService';
+import {
+  fetchQwenStatus,
+  testQwenDecider,
+  downloadQwenFile,
+  DEFAULT_QWEN_DECIDER_MODEL,
+} from '../services/qwenDeciderService';
 import { VramUsageChartD3 } from './VramUsageChartD3';
 
 interface SystemDiagnosticModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialTab?: 'tests' | 'gpu' | 'hallunox' | 'qwen' | 'interactive' | 'tuning';
   ollamaHost: string;
   ollamaModel?: string;
   geminiModel: string;
+  activeQwenModel?: string;
+  onSelectQwenModel?: (model: string) => void;
   onExecuteTestPromptInChat?: (mode: 'hybrid' | 'ollama' | 'gemini', promptText: string) => void;
 }
 
 export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
   isOpen,
   onClose,
+  initialTab = 'tests',
   ollamaHost,
   ollamaModel = 'llama3.2:3b',
   geminiModel,
+  activeQwenModel = DEFAULT_QWEN_DECIDER_MODEL,
+  onSelectQwenModel,
   onExecuteTestPromptInChat,
 }) => {
   const [isRunning, setIsRunning] = useState(false);
   const [suiteResult, setSuiteResult] = useState<DiagnosticSuiteResult | null>(null);
-  const [activeTab, setActiveTab] = useState<'tests' | 'gpu' | 'hallunox' | 'interactive' | 'tuning'>('tests');
+  const [activeTab, setActiveTab] = useState<'tests' | 'gpu' | 'hallunox' | 'qwen' | 'interactive' | 'tuning'>(
+    initialTab || 'tests'
+  );
+
+  useEffect(() => {
+    if (isOpen && initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [isOpen, initialTab]);
+
+  // Qwen-Decider SLM State (Winzige JEPA-Entscheidungsmodelle)
+  const [qwenStatus, setQwenStatus] = useState<QwenDeciderStatus | null>(null);
+  const [isLoadingQwen, setIsLoadingQwen] = useState(false);
+  const [qwenTestPrompt, setQwenTestPrompt] = useState('Kannst du mir helfen das Kennwort für meinen Windows 11 Account zurückzusetzen?');
+  const [qwenTestResult, setQwenTestResult] = useState<QwenDeciderEvaluation | null>(null);
+  const [isTestingQwen, setIsTestingQwen] = useState(false);
+  const [qwenCopiedCmd, setQwenCopiedCmd] = useState<string | null>(null);
+  const [selectedQwenModel, setSelectedQwenModel] = useState<string>(activeQwenModel);
+  const [showQwenJson, setShowQwenJson] = useState(false);
+
+  useEffect(() => {
+    setSelectedQwenModel(activeQwenModel);
+  }, [activeQwenModel]);
+
+  const loadQwenStatus = async () => {
+    setIsLoadingQwen(true);
+    try {
+      const status = await fetchQwenStatus(ollamaHost);
+      setQwenStatus(status);
+    } catch (err) {
+      console.error('Error loading Qwen status:', err);
+    } finally {
+      setIsLoadingQwen(false);
+    }
+  };
+
+  const handleTestQwen = async (promptOverride?: string) => {
+    const prompt = promptOverride || qwenTestPrompt;
+    if (!prompt.trim()) return;
+    setIsTestingQwen(true);
+    try {
+      const res = await testQwenDecider(prompt, ollamaHost, selectedQwenModel);
+      setQwenTestResult(res);
+    } catch (err) {
+      console.error('Error testing Qwen decider:', err);
+    } finally {
+      setIsTestingQwen(false);
+    }
+  };
+
+  const handleCopyQwenCmd = (cmd: string, key: string) => {
+    navigator.clipboard.writeText(cmd);
+    setQwenCopiedCmd(key);
+    setTimeout(() => setQwenCopiedCmd(null), 2500);
+  };
 
   // Hallunox Anti-Hallucination Guardrail State
   const [hallunoxStatus, setHallunoxStatus] = useState<HallunoxStatus | null>(null);
@@ -283,6 +358,9 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
     }
     if (isOpen && (activeTab === 'hallunox' || !hallunoxStatus)) {
       loadHallunoxStatus();
+    }
+    if (isOpen && (activeTab === 'qwen' || !qwenStatus)) {
+      loadQwenStatus();
     }
   }, [isOpen, activeTab]);
 
@@ -593,6 +671,23 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
                 {hallunoxStatus.serviceRunning ? 'Port 8001 Online' : 'PyPI Ready'}
               </span>
             )}
+          </button>
+
+          {/* Qwen-Decider SLM Routing Tab */}
+          <button
+            id="diag-tab-qwen"
+            onClick={() => setActiveTab('qwen')}
+            className={`py-2.5 px-4 text-xs font-semibold border-b-2 transition-colors flex items-center gap-2 shrink-0 ${
+              activeTab === 'qwen'
+                ? 'border-violet-400 text-violet-300'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Brain className="w-3.5 h-3.5 text-violet-400" />
+            <span>Qwen-Decider SLM</span>
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-violet-500/20 text-violet-300 border border-violet-500/40">
+              JEPA Head
+            </span>
           </button>
 
           <button
@@ -1815,6 +1910,412 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB: QWEN-DECIDER SLM DECISION HEAD & JEPA ARCHITECTURE */}
+          {activeTab === 'qwen' && (
+            <div className="space-y-4">
+              {/* HEADER / EXPLANATION CARD */}
+              <div className="p-4 rounded-xl bg-gradient-to-r from-violet-950/40 via-slate-900/60 to-slate-950 border border-violet-800/40 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-lg bg-violet-500/20 border border-violet-500/40 text-violet-300">
+                      <Brain className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-100 text-sm flex items-center gap-2">
+                        Qwen-Decider SLM Routing & JEPA-Entscheidungskopf
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-violet-500/20 text-violet-300 border border-violet-500/30">
+                          &lt; 20ms Inferenz
+                        </span>
+                      </h3>
+                      <p className="text-slate-400 text-xs mt-0.5">
+                        Winzige SLMs (Qwen 0.5B/3.5) als intelligenter Gatekeeper zur Einsparung von GPU-VRAM und Cloud-Latenz.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={loadQwenStatus}
+                      disabled={isLoadingQwen}
+                      className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
+                    >
+                      <RotateCcw className={`w-3.5 h-3.5 ${isLoadingQwen ? 'animate-spin' : ''}`} />
+                      <span>Status prüfen</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Status Badges */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-800/80 text-xs">
+                  <div className="p-2 rounded-lg bg-slate-900/80 border border-slate-800">
+                    <span className="text-slate-400 text-[10px] block">Entscheidungs-Modell:</span>
+                    <span className="font-mono font-semibold text-violet-300 truncate block">
+                      {selectedQwenModel}
+                    </span>
+                  </div>
+                  <div className="p-2 rounded-lg bg-slate-900/80 border border-slate-800">
+                    <span className="text-slate-400 text-[10px] block">Ollama Decider Status:</span>
+                    <span className={`font-semibold flex items-center gap-1 ${qwenStatus?.deciderModelAvailable ? 'text-emerald-400' : 'text-amber-300'}`}>
+                      {qwenStatus?.deciderModelAvailable ? (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Lokal in Ollama</span>
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="w-3.5 h-3.5" />
+                          <span>JEPA-Heuristik aktiv</span>
+                        </>
+                      )}
+                    </span>
+                  </div>
+                  <div className="p-2 rounded-lg bg-slate-900/80 border border-slate-800">
+                    <span className="text-slate-400 text-[10px] block">Entscheidungs-Latenz:</span>
+                    <span className="font-mono font-semibold text-cyan-300">
+                      &lt; 20 ms (Target)
+                    </span>
+                  </div>
+                  <div className="p-2 rounded-lg bg-slate-900/80 border border-slate-800">
+                    <span className="text-slate-400 text-[10px] block">Routing-Ebenen:</span>
+                    <span className="font-semibold text-emerald-400">
+                      Ollama / Gemini / Hybrid
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* INTERACTIVE TESTING SANDBOX */}
+              <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-200 flex items-center gap-2">
+                    <Play className="w-3.5 h-3.5 text-violet-400" />
+                    Interaktive Qwen-Entscheidungsprüfung
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <label className="text-[11px] text-slate-400">Modell:</label>
+                    <select
+                      value={selectedQwenModel}
+                      onChange={(e) => {
+                        setSelectedQwenModel(e.target.value);
+                        onSelectQwenModel?.(e.target.value);
+                      }}
+                      className="bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-violet-300 focus:outline-none focus:border-violet-500 font-mono"
+                    >
+                      <option value="qwen-decider:0.5b">qwen-decider:0.5b (Eigenes Modelfile)</option>
+                      <option value="qwen2.5:0.5b">qwen2.5:0.5b (Ollama Standard)</option>
+                      <option value="qwen2.5:1.5b">qwen2.5:1.5b</option>
+                      <option value="qwen2.5:3b">qwen2.5:3b</option>
+                      <option value="qwen2.5:7b">qwen2.5:7b</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Preset Prompt Buttons */}
+                <div className="flex flex-wrap gap-1.5 text-[11px]">
+                  <span className="text-slate-500 py-1 text-[10px]">Schnelltests:</span>
+                  <button
+                    onClick={() => {
+                      const p = 'Kannst du mir helfen das Kennwort für meinen Windows 11 Account zurückzusetzen?';
+                      setQwenTestPrompt(p);
+                      handleTestQwen(p);
+                    }}
+                    className="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 transition cursor-pointer"
+                  >
+                    🔐 Kennwort / Windows (Privat)
+                  </button>
+                  <button
+                    onClick={() => {
+                      const p = 'Erkläre die mathematische Formulierung der Einstein-Feldgleichungen und Quantenverschränkung.';
+                      setQwenTestPrompt(p);
+                      handleTestQwen(p);
+                    }}
+                    className="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 transition cursor-pointer"
+                  >
+                    ☁️ Quantenphysik (Komplex)
+                  </button>
+                  <button
+                    onClick={() => {
+                      const p = 'Lies meine lokalen Projektnotizen aus D:\\OllamaKnowledge und erstelle ein Backup-Skript.';
+                      setQwenTestPrompt(p);
+                      handleTestQwen(p);
+                    }}
+                    className="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 transition cursor-pointer"
+                  >
+                    📂 D:\OllamaKnowledge (Lokales RAG)
+                  </button>
+                  <button
+                    onClick={() => {
+                      const p = 'Schreibe ein optimiertes PowerShell-Skript zur Bereinigung des Standby-VRAM auf Windows 11.';
+                      setQwenTestPrompt(p);
+                      handleTestQwen(p);
+                    }}
+                    className="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 transition cursor-pointer"
+                  >
+                    ⚡ PowerShell (Hybrid Entwurf)
+                  </button>
+                </div>
+
+                {/* Prompt Input */}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={qwenTestPrompt}
+                    onChange={(e) => setQwenTestPrompt(e.target.value)}
+                    placeholder="Zu evaluierende Nutzeranfrage..."
+                    className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-violet-500"
+                  />
+                  <button
+                    onClick={() => handleTestQwen()}
+                    disabled={isTestingQwen || !qwenTestPrompt.trim()}
+                    className="px-4 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <Zap className="w-3.5 h-3.5" />
+                    <span>{isTestingQwen ? 'Entscheide...' : 'Qwen-Entscheidung berechnen'}</span>
+                  </button>
+                </div>
+
+                {/* DECISION RESULT DISPLAY */}
+                {qwenTestResult && (
+                  <div className="mt-3 p-4 rounded-xl bg-slate-900/90 border border-violet-800/50 space-y-3 animate-in fade-in">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-200">Ziel-Engine:</span>
+                        <span
+                          className={`px-2.5 py-0.5 rounded text-xs font-bold uppercase tracking-wide ${
+                            qwenTestResult.engine === 'ollama'
+                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                              : qwenTestResult.engine === 'gemini'
+                              ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                              : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                          }`}
+                        >
+                          {qwenTestResult.engine === 'ollama' && '💻 LOKAL (Ollama)'}
+                          {qwenTestResult.engine === 'gemini' && '☁️ CLOUD (Gemini)'}
+                          {qwenTestResult.engine === 'hybrid' && '⚡ HYBRID (Verbund)'}
+                        </span>
+                        <span className="text-[11px] text-slate-400 font-mono">
+                          Empfohlener Modus: <strong className="text-slate-200">{qwenTestResult.recommendedMode}</strong>
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-3 text-xs font-mono">
+                        <span className="text-emerald-400 font-bold">
+                          {qwenTestResult.latencyMs} ms
+                        </span>
+                        <span className="text-violet-300 font-bold">
+                          {Math.round(qwenTestResult.confidence * 100)}% Konfidenz
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Metric Gauges */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                      <div className="p-2 rounded bg-slate-950/80 border border-slate-800">
+                        <div className="flex justify-between text-[11px] text-slate-400 mb-1">
+                          <span>Privatsphäre / Lokal:</span>
+                          <span className="font-mono font-bold text-amber-400">
+                            {Math.round(qwenTestResult.privacyScore * 100)}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                          <div
+                            className="bg-amber-400 h-full rounded-full transition-all duration-300"
+                            style={{ width: `${Math.round(qwenTestResult.privacyScore * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="p-2 rounded bg-slate-950/80 border border-slate-800">
+                        <div className="flex justify-between text-[11px] text-slate-400 mb-1">
+                          <span>Komplexität:</span>
+                          <span className="font-mono font-bold text-cyan-400">
+                            {Math.round(qwenTestResult.complexityScore * 100)}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                          <div
+                            className="bg-cyan-400 h-full rounded-full transition-all duration-300"
+                            style={{ width: `${Math.round(qwenTestResult.complexityScore * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="p-2 rounded bg-slate-950/80 border border-slate-800">
+                        <div className="flex justify-between text-[11px] text-slate-400 mb-1">
+                          <span>D:\ Knowledge:</span>
+                          <span className="font-mono font-bold text-emerald-400">
+                            {qwenTestResult.requiresDriveDKnowledge ? 'Erforderlich' : 'Nicht nötig'}
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${qwenTestResult.requiresDriveDKnowledge ? 'bg-emerald-400 w-full' : 'bg-slate-700 w-1/4'}`}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="p-2 rounded bg-slate-950/80 border border-slate-800">
+                        <div className="flex justify-between text-[11px] text-slate-400 mb-1">
+                          <span>High Thinking:</span>
+                          <span className="font-mono font-bold text-violet-400">
+                            {qwenTestResult.requiresThinking ? 'Empfohlen' : 'Standard'}
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${qwenTestResult.requiresThinking ? 'bg-violet-400 w-full' : 'bg-slate-700 w-1/4'}`}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Rationale text */}
+                    <div className="p-2.5 rounded bg-slate-950/90 border border-slate-800 text-xs text-slate-300 flex items-start gap-2">
+                      <Brain className="w-4 h-4 text-violet-400 shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="text-slate-200 block text-[11px]">SLM Begründung:</strong>
+                        <p className="mt-0.5 leading-relaxed">{qwenTestResult.reason}</p>
+                      </div>
+                    </div>
+
+                    {/* Optional JSON View */}
+                    <div className="pt-1">
+                      <button
+                        onClick={() => setShowQwenJson((prev) => !prev)}
+                        className="text-[11px] text-slate-400 hover:text-slate-200 flex items-center gap-1 font-mono transition cursor-pointer"
+                      >
+                        <Eye className="w-3 h-3" />
+                        <span>{showQwenJson ? 'JSON-Payload ausblenden' : 'Rohdaten JSON anzeigen'}</span>
+                      </button>
+
+                      {showQwenJson && (
+                        <pre className="mt-2 p-2.5 bg-slate-950 border border-slate-800 rounded font-mono text-[10px] text-emerald-400 overflow-x-auto">
+                          {JSON.stringify(qwenTestResult, null, 2)}
+                        </pre>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* SELBST-TRAINING & MODELFILE BAUKASTEN */}
+              <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-3 text-xs">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-slate-200 flex items-center gap-2">
+                    <FolderCheck className="w-4 h-4 text-amber-400" />
+                    <span>Qwen-Decider: Selbst trainieren & lokal registrieren</span>
+                  </h3>
+                  <span className="text-[11px] text-slate-400 font-mono">
+                    Windows 11 / Ollama / PyTorch
+                  </span>
+                </div>
+
+                <p className="text-slate-400 leading-relaxed text-[11px]">
+                  Sie können winzige JEPA-Entscheidungsmodelle auf Basis von Qwen (0.5B bis 3.5B) komplett eigenständig trainieren und als Ollama-Modell registrieren. Nutzen Sie die vorkonfigurierten Dateien:
+                </p>
+
+                {/* 1-Click File Download Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                  <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 flex flex-col justify-between">
+                    <div>
+                      <span className="font-mono text-amber-300 font-bold text-xs block">
+                        setup-qwen-decider.bat
+                      </span>
+                      <p className="text-slate-400 text-[10px] mt-1">
+                        1-Klick Windows 11 Batch-Skript: Zieht Qwen 0.5B und erstellt das Decider-Modell automatisch.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => downloadQwenFile('setup-bat', 'setup-qwen-decider.bat')}
+                      className="mt-3 w-full py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded font-medium text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>.bat Herunterladen</span>
+                    </button>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 flex flex-col justify-between">
+                    <div>
+                      <span className="font-mono text-cyan-300 font-bold text-xs block">
+                        Modelfile-qwen-decider
+                      </span>
+                      <p className="text-slate-400 text-[10px] mt-1">
+                        Ollama Modelfile mit JEPA-Routing System-Prompt, JSON-Formatierung und Temperatur 0.1.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => downloadQwenFile('modelfile', 'Modelfile-qwen-decider')}
+                      className="mt-3 w-full py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded font-medium text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Modelfile Laden</span>
+                    </button>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 flex flex-col justify-between">
+                    <div>
+                      <span className="font-mono text-violet-300 font-bold text-xs block">
+                        train_qwen_decider.py
+                      </span>
+                      <p className="text-slate-400 text-[10px] mt-1">
+                        PyTorch / Unsloth Fine-Tuning Skript: Trainiert Qwen 0.5B/3.5B mit Synthese-Datensätzen auf Windows 11.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => downloadQwenFile('train-script', 'train_qwen_decider.py')}
+                      className="mt-3 w-full py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded font-medium text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Python Skript Laden</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Step by step manual setup instructions */}
+                <div className="mt-3 p-3.5 rounded-lg bg-slate-900/80 border border-slate-800 space-y-2">
+                  <span className="font-semibold text-slate-200 text-xs block">
+                    Schritt-für-Schritt Einrichtung im Windows Terminal (PowerShell):
+                  </span>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between p-2 rounded bg-slate-950 font-mono text-[11px] text-slate-300">
+                      <span>ollama pull qwen2.5:0.5b</span>
+                      <button
+                        onClick={() => handleCopyQwenCmd('ollama pull qwen2.5:0.5b', 'cmd1')}
+                        className="text-slate-400 hover:text-white flex items-center gap-1 transition cursor-pointer"
+                      >
+                        {qwenCopiedCmd === 'cmd1' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        <span className="text-[10px]">{qwenCopiedCmd === 'cmd1' ? 'Kopiert' : 'Kopieren'}</span>
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between p-2 rounded bg-slate-950 font-mono text-[11px] text-slate-300">
+                      <span>ollama create qwen-decider:0.5b -f Modelfile-qwen-decider</span>
+                      <button
+                        onClick={() => handleCopyQwenCmd('ollama create qwen-decider:0.5b -f Modelfile-qwen-decider', 'cmd2')}
+                        className="text-slate-400 hover:text-white flex items-center gap-1 transition cursor-pointer"
+                      >
+                        {qwenCopiedCmd === 'cmd2' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        <span className="text-[10px]">{qwenCopiedCmd === 'cmd2' ? 'Kopiert' : 'Kopieren'}</span>
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between p-2 rounded bg-slate-950 font-mono text-[11px] text-slate-300">
+                      <span>python train_qwen_decider.py</span>
+                      <button
+                        onClick={() => handleCopyQwenCmd('python train_qwen_decider.py', 'cmd3')}
+                        className="text-slate-400 hover:text-white flex items-center gap-1 transition cursor-pointer"
+                      >
+                        {qwenCopiedCmd === 'cmd3' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        <span className="text-[10px]">{qwenCopiedCmd === 'cmd3' ? 'Kopiert' : 'Kopieren'}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}

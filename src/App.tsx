@@ -33,6 +33,12 @@ import { fetchDriveDStatus } from './services/knowledgeService';
 import { analyzePromptForRouting } from './services/hybridRouter';
 import { verifyWithHallunox } from './services/hallunoxService';
 import {
+  evaluateWithQwenDecider,
+  convertQwenToRoutingDecision,
+  DEFAULT_QWEN_DECIDER_MODEL,
+} from './services/qwenDeciderService';
+import { QwenDeciderEvaluation } from './types';
+import {
   Cpu,
   Sparkles,
   ShieldCheck,
@@ -45,6 +51,8 @@ import {
   Download,
   AppWindow,
   X,
+  Zap,
+  Brain,
 } from 'lucide-react';
 
 export default function App() {
@@ -76,6 +84,13 @@ export default function App() {
 
   // System Diagnostics State (Herz & Nieren 99% Test)
   const [isDiagnosticOpen, setIsDiagnosticOpen] = useState<boolean>(false);
+  const [initialDiagnosticTab, setInitialDiagnosticTab] = useState<'tests' | 'gpu' | 'hallunox' | 'qwen' | 'interactive' | 'tuning'>('tests');
+
+  // Qwen-Decider SLM Decision Head State (< 20ms Router & Gatekeeper)
+  const [activeQwenDeciderModel, setActiveQwenDeciderModel] = useState<string>(() => {
+    return localStorage.getItem('hybrid_qwen_decider_model') || DEFAULT_QWEN_DECIDER_MODEL;
+  });
+  const [lastQwenEvaluation, setLastQwenEvaluation] = useState<QwenDeciderEvaluation | null>(null);
 
   // Hybrid Mode State
   const [hybridMode, setHybridMode] = useState<HybridMode>('smart_router');
@@ -256,9 +271,18 @@ export default function App() {
     setIsLoading(true);
 
     try {
+      // 1. Central Qwen-Decider SLM Pipeline: Every request passes through the Qwen Decision Head
+      const qwenEval = await evaluateWithQwenDecider(
+        text,
+        customHost,
+        activeQwenDeciderModel,
+        isDemoMode
+      );
+      setLastQwenEvaluation(qwenEval);
+
       if (hybridMode === 'smart_router') {
-        // Mode 1: Smart Router
-        const decision = analyzePromptForRouting(text);
+        // Mode 1: Smart Router (Governed by Qwen-Decider)
+        const decision = convertQwenToRoutingDecision(qwenEval);
 
         if (decision.chosenEngine === 'ollama') {
           // Route to Ollama
@@ -268,7 +292,7 @@ export default function App() {
             text,
             'Du bist eine hilfsbereite lokale KI auf Windows 11. Beantworte stets die konkrete inhaltliche Frage des Nutzers präzise, verständlich und auf Deutsch. Auch bei Tippfehlern erfasst du die Intention und antwortest direkt.',
             isDemoMode,
-            true // Enable Drive D Knowledge
+            qwenEval.requiresDriveDKnowledge // Dynamic RAG injection governed by Qwen
           );
 
           const hallunoxVerification = await checkHallunoxGuardrail(text, ollamaRes.text, activeOllamaModel);
@@ -287,6 +311,7 @@ export default function App() {
               driveDKnowledgeUsed: ollamaRes.driveDKnowledgeUsed,
               targetPath: ollamaRes.targetPath,
               hallunoxVerification,
+              qwenDecider: qwenEval,
             },
           };
           setMessages((prev) => [...prev, assistantMsg]);
@@ -297,7 +322,7 @@ export default function App() {
               activeGeminiModel,
               text,
               undefined,
-              enableThinking || activeGeminiModel === 'gemini-3.1-pro-preview'
+              enableThinking || qwenEval.requiresThinking || activeGeminiModel === 'gemini-3.1-pro-preview'
             );
 
             const hallunoxVerification = await checkHallunoxGuardrail(text, geminiRes.text, geminiRes.model);
@@ -316,6 +341,7 @@ export default function App() {
                 savedToDriveD: geminiRes.savedToDriveD ?? true,
                 targetPath: geminiRes.targetPath || 'D:\\OllamaKnowledge\\',
                 hallunoxVerification,
+                qwenDecider: qwenEval,
               },
             };
             setMessages((prev) => [...prev, assistantMsg]);
@@ -346,6 +372,7 @@ export default function App() {
                 driveDKnowledgeUsed: ollamaRes.driveDKnowledgeUsed,
                 targetPath: ollamaRes.targetPath,
                 hallunoxVerification,
+                qwenDecider: qwenEval,
               },
             };
             setMessages((prev) => [...prev, assistantMsg]);
@@ -359,7 +386,7 @@ export default function App() {
             activeGeminiModel,
             text,
             undefined,
-            enableThinking || activeGeminiModel === 'gemini-3.1-pro-preview'
+            enableThinking || qwenEval.requiresThinking || activeGeminiModel === 'gemini-3.1-pro-preview'
           ),
         ]);
 
@@ -406,6 +433,7 @@ export default function App() {
             targetPath: 'D:\\OllamaKnowledge\\',
             driveDKnowledgeUsed: ollamaKnowledgeUsed,
             hallunoxVerification,
+            qwenDecider: qwenEval,
             ollamaPart: {
               content: ollamaContent,
               model: activeOllamaModel,
@@ -436,7 +464,7 @@ export default function App() {
           text,
           localDraft.text,
           activeGeminiModel,
-          enableThinking || activeGeminiModel === 'gemini-3.1-pro-preview'
+          enableThinking || qwenEval.requiresThinking || activeGeminiModel === 'gemini-3.1-pro-preview'
         );
 
         const totalDuration = localDraft.durationMs + refined.durationMs;
@@ -456,6 +484,7 @@ export default function App() {
             targetPath: refined.targetPath || 'D:\\OllamaKnowledge\\',
             driveDKnowledgeUsed: localDraft.driveDKnowledgeUsed,
             hallunoxVerification,
+            qwenDecider: qwenEval,
             ollamaPart: {
               content: localDraft.text,
               model: activeOllamaModel,
@@ -485,7 +514,7 @@ export default function App() {
           text,
           localResponse.text,
           activeGeminiModel,
-          enableThinking || activeGeminiModel === 'gemini-3.1-pro-preview'
+          enableThinking || qwenEval.requiresThinking || activeGeminiModel === 'gemini-3.1-pro-preview'
         );
 
         const hallunoxVerification = await checkHallunoxGuardrail(text, consensusRes.text, consensusRes.model);
@@ -504,6 +533,7 @@ export default function App() {
             targetPath: consensusRes.targetPath || 'D:\\OllamaKnowledge\\',
             driveDKnowledgeUsed: localResponse.driveDKnowledgeUsed,
             hallunoxVerification,
+            qwenDecider: qwenEval,
             ollamaPart: {
               content: localResponse.text,
               model: activeOllamaModel,
@@ -640,11 +670,38 @@ export default function App() {
               </button>
             </div>
 
+            {/* Center: Qwen-Decider SLM Decision Head status */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setInitialDiagnosticTab('qwen');
+                  setIsDiagnosticOpen(true);
+                }}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/30 text-violet-200 transition text-xs font-medium cursor-pointer shadow-sm"
+                title="Qwen-Decider SLM Decision Head, Routing & Training öffnen"
+              >
+                <Zap className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                <span className="font-semibold text-slate-100">Qwen-Decider:</span>
+                <span className="bg-violet-500/20 text-violet-300 font-mono text-[11px] px-1.5 py-0.5 rounded border border-violet-500/30">
+                  {activeQwenDeciderModel}
+                </span>
+                <span className="text-[10px] text-emerald-400 font-mono hidden sm:inline">
+                  {lastQwenEvaluation
+                    ? `${lastQwenEvaluation.latencyMs}ms (${lastQwenEvaluation.engine.toUpperCase()})`
+                    : '< 20ms JEPA Head'}
+                </span>
+              </button>
+            </div>
+
             {/* Right: Herz & Nieren Diagnostic Suite */}
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setIsDiagnosticOpen(true)}
+                onClick={() => {
+                  setInitialDiagnosticTab('tests');
+                  setIsDiagnosticOpen(true);
+                }}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-200 transition text-xs font-medium cursor-pointer shadow-sm"
                 title="System auf Herz und Nieren testen"
               >
@@ -831,9 +888,15 @@ export default function App() {
       <SystemDiagnosticModal
         isOpen={isDiagnosticOpen}
         onClose={() => setIsDiagnosticOpen(false)}
+        initialTab={initialDiagnosticTab}
         ollamaHost={customHost}
         ollamaModel={activeOllamaModel}
         geminiModel={activeGeminiModel}
+        activeQwenModel={activeQwenDeciderModel}
+        onSelectQwenModel={(model) => {
+          setActiveQwenDeciderModel(model);
+          localStorage.setItem('hybrid_qwen_decider_model', model);
+        }}
         onExecuteTestPromptInChat={(mode, promptText) => {
           setIsDiagnosticOpen(false);
           if (mode === 'hybrid') {
