@@ -1,0 +1,156 @@
+[
+  {
+    "id": "vault-1789996467722-bbjdx",
+    "source": "gemini",
+    "model": "gemini-3.8-flash",
+    "prompt": "Antworte in genau 3 Worten: Hybrid Workstation Status.",
+    "response": "Workstation ist betriebsbereit.",
+    "summary": "Workstation ist betriebsbereit.",
+    "tags": [
+      "antworte",
+      "genau",
+      "worten",
+      "hybrid",
+      "workstation",
+      "status"
+    ],
+    "timestamp": "2026-09-21T13:14:27.723Z",
+    "targetPath": "D:\\OllamaKnowledge\\gemini_antworte_in_genau_3_worten_hyb.md",
+    "sizeBytes": 85,
+    "syncedToLocalDriveD": true
+  },
+  {
+    "id": "vault-1789995595740-5wojs",
+    "source": "hybrid",
+    "model": "gemini-3.5-flash",
+    "prompt": "[Hybrid consensus] Ich habe hier ein vertrauliches Mitarbeiter-Passwort und interne DSGVO-Daten. Wie kann ich diese sicher lokal speichern?",
+    "response": "Als **Synthese-Orchestrator** führe ich die lokalen Stärken Ihres On-Premise-Modells (Sicherheit, Zero-Cloud-Risk) und die analytische Tiefe globaler Sicherheitsstandards (Deep Reasoning, Best Practices) zu einer konsolidierten, hochsicheren Architektur-Empfehlung zusammen.\n\nHier ist die ausgewogene Konsensusanalyse und der konkrete Handlungsleitfaden für Ihr Vorhaben.\n\n---\n\n### 1. Hybrid-Sicherheitsanalyse\n\n#### Perspektive A: Die lokale KI (Ollama / llama3.2)\n*   **Vorteil:** Die Verarbeitung Ihrer Anfrage erfolgte bereits unter maximalem Schutz. Da sensible Begriffe (Passwort, DSGVO) eingegeben wurden, verhinderte die lokale Inferenz (1145ms Latenz auf Ihrer GPU/CPU) jeglichen Abfluss von Metadaten oder Kontext an externe Server.\n*   **Einschränkung:** Lokale 3B-Modelle bieten hervorragende Ad-hoc-Hilfe, neigen aber bei komplexen rechtlichen Details (wie den exakten technischen und organisatorischen Maßnahmen – TOMs – nach DSGVO Art. 32) zu Verallgemeinerungen.\n\n#### Perspektive B: Die Cloud-/Deep-Reasoning-Perspektive\n*   **Vorteil:** Liefert das präzise, aktuelle Fachwissen über IT-Sicherheitsstandards (BSI-Grundschutz, ISO 27001) und die juristische Tiefe der DSGVO.\n*   **Einschränkung:** Ein direkter Upload solcher sensiblen Daten in eine Public Cloud zur Verarbeitung wäre ein sofortiger Compliance-Verstoß.\n\n---\n\n### 2. Der Orchestrator-Konsens: Lokales Sicherheitskonzept\n\nUm das Passwort und die DSGVO-Daten auf Ihrem Windows 11 System absolut sicher und konform zu speichern, müssen Sie das Prinzip der **Defense in Depth** (gestaffelte Sicherheit) anwenden. \n\nHier ist die Schritt-für-Schritt-Anleitung, basierend auf dem konsolidierten Wissen des Verbunds:\n\n#### Schritt 1: Das Passwort sicher speichern (Lokaler Tresor)\nSpeichern Sie Passwörter niemals in Textdateien, Excel-Tabellen oder im Browser.\n*   **Lösung:** Nutzen Sie **KeePassXC** (Open Source, komplett lokal, keine Cloud-Anbindung).\n*   **Sicherheit:** Die Passwort-Datenbank (`.kdbx`) wird mit AES-256 verschlüsselt.\n*   **Master-Key:** Wählen Sie ein starkes Master-Passwort (mindestens 16 Zeichen, Kombination aus Groß-/Kleinbuchstaben, Zahlen und Sonderzeichen), das Sie sich physisch merken oder extrem sicher offline aufbewahren.\n\n#### Schritt 2: Die internen DSGVO-Daten speichern (Verschlüsseltes Laufwerk)\nDSGVO-Daten erfordern strengen Schutz vor unbefugtem Zugriff (Art. 32 DSGVO – Vertraulichkeit und Integrität).\n*   **Option A (Windows 11 Pro/Enterprise): BitLocker**\n    *   Nutzen Sie ein separates, mit BitLocker verschlüsseltes Laufwerk oder eine separate Partition für sensible Daten.\n*   **Option B (Universell & Extrem Sicher): VeraCrypt (Open Source)**\n    *   Erstellen Sie einen **verschlüsselten Datei-Container** mit VeraCrypt (z. B. 5 GB groß).\n    *   Dieser Container verhält sich wie eine normale Datei, kann aber als virtuelles Laufwerk gemountet werden, sobald Sie Ihr Passwort eingeben.\n    *   Vorteil: Perfekter Schutz vor physischem Diebstahl des Geräts oder unbefugtem Zugriff durch andere Nutzer.\n\n#### Schritt 3: Zugriffskontrolle und NTFS-Berechtigungen (Windows 11)\nSelbst auf einem lokalen PC müssen die Rechte eingeschränkt sein.\n1.  Speichern Sie die verschlüsselten Dateien nicht im öffentlichen Ordner (`C:\\Benutzer\\Öffentlich`).\n2.  Klicken Sie mit der rechten Maustaste auf den Ordner mit den sensiblen Daten -> *Eigenschaften* -> *Sicherheit*.\n3.  Entziehen Sie allen Benutzern außer Ihrem persönlichen (passwortgeschützten!) Windows-Konto die Lese- und Schreibrechte.\n\n#### Schritt 4: Backup-Strategie (DSGVO-konform)\nDatenverlust ist ebenfalls ein DSGVO-Verstoß (Verfügbarkeit der Daten).\n*   Sichern Sie den verschlüsselten VeraCrypt-Container oder die KeePass-Datenbank auf einer **externen Festplatte**, die Sie physisch wegsperren.\n*   Nutzen Sie **keine** automatischen Cloud-Backups (OneDrive, Dropbox, iCloud) für diese Dateien, es sei denn, sie sind *vor* dem Upload mit einem Zero-Knowledge-Tool (wie Cryptomator) verschlüsselt worden.\n\n---\n\n### Fazit des Verbunds\n\nDer Hybrid-Ansatz zeigt: **Die Analyse erfolgte sicher im lokalen Schutzraum (Ollama), die Umsetzung folgt den globalen Standards für Informationssicherheit (Synthese).** \n\nMit der Kombination aus **KeePassXC** (für das Passwort) und **VeraCrypt/BitLocker** (für die DSGVO-Daten) auf Ihrem lokalen Windows 11 System setzen Sie eine professionelle, DSGVO-konforme Verschlüsselungsebene auf, die selbst bei Diebstahl der Hardware nicht kompromittiert werden kann.",
+    "summary": "Als **Synthese-Orchestrator** führe ich die lokalen Stärken Ihres On-Premise-Modells (Sicherheit, Zero-Cloud-Risk) und die analytische Tiefe globaler Sicherheitsstandards...",
+    "tags": [
+      "hybrid",
+      "consensus",
+      "vertrauliches",
+      "mitarbeiter",
+      "passwort",
+      "interne"
+    ],
+    "timestamp": "2026-09-21T12:59:55.741Z",
+    "targetPath": "D:\\OllamaKnowledge\\gemini_hybrid_consensus_ich_habe_hier.md",
+    "sizeBytes": 4672,
+    "syncedToLocalDriveD": true
+  },
+  {
+    "id": "vault-1789994012652-5ai6l",
+    "source": "gemini",
+    "model": "gemini-3.8-flash",
+    "prompt": "Hallo, antworte mit TEST ERFOLGREICH",
+    "response": "TEST ERFOLGREICH",
+    "summary": "TEST ERFOLGREICH",
+    "tags": [
+      "hallo",
+      "antworte",
+      "erfolgreich"
+    ],
+    "timestamp": "2026-09-21T12:33:32.652Z",
+    "targetPath": "D:\\OllamaKnowledge\\gemini_hallo_antworte_mit_test_erfolg.md",
+    "sizeBytes": 52,
+    "syncedToLocalDriveD": true
+  },
+  {
+    "id": "vault-1789993702693-ep3oi",
+    "source": "hybrid",
+    "model": "system-test",
+    "prompt": "Systemdiagnose Herz und Nieren Test-Prompt",
+    "response": "Test-Speicherung auf Laufwerk D: erfolgreich verifiziert.",
+    "summary": "Test-Speicherung auf Laufwerk D: erfolgreich verifiziert.",
+    "tags": [
+      "systemdiagnose",
+      "nieren",
+      "prompt",
+      "speicherung",
+      "laufwerk",
+      "erfolgreich"
+    ],
+    "timestamp": "2026-09-21T12:28:22.694Z",
+    "targetPath": "D:\\OllamaKnowledge\\gemini_systemdiagnose_herz_und_nieren.md",
+    "sizeBytes": 99,
+    "syncedToLocalDriveD": true
+  },
+  {
+    "id": "vault-1789993555273-vfeqm",
+    "source": "hybrid",
+    "model": "system-test",
+    "prompt": "Systemdiagnose Herz und Nieren Test-Prompt",
+    "response": "Test-Speicherung auf Laufwerk D: erfolgreich verifiziert.",
+    "summary": "Test-Speicherung auf Laufwerk D: erfolgreich verifiziert.",
+    "tags": [
+      "systemdiagnose",
+      "nieren",
+      "prompt",
+      "speicherung",
+      "laufwerk",
+      "erfolgreich"
+    ],
+    "timestamp": "2026-09-21T12:25:55.274Z",
+    "targetPath": "D:\\OllamaKnowledge\\gemini_systemdiagnose_herz_und_nieren.md",
+    "sizeBytes": 99,
+    "syncedToLocalDriveD": true
+  },
+  {
+    "id": "vault-seed-01",
+    "source": "ai_studio",
+    "model": "gemini-3.1-pro-preview",
+    "prompt": "Beste Praktiken fuer High Performance WebSocket Clustering auf Windows Server 2022",
+    "response": "Fuer maximale Durchsatzraten auf Windows Server: 1. Verwenden Sie den I/O Completion Ports (IOCP) Kernel-Mechanismus. 2. Setzen Sie MaxUserPort auf 65534 und TcpTimedWaitDelay auf 30 Sekunden in der Windows Registry. 3. Nutzen Sie Node.js cluster oder Go Goroutines mit ephemeral port reuse (SO_REUSEADDR). 4. Memory-Buffer pro Socket auf 4KB cappen, um 50k parallele Sockets unter 300MB RAM zu halten.",
+    "summary": "Architektur-Leitfaden fuer 50.000+ parallele WebSockets auf Windows Server mit Kernel IOCP Tuning.",
+    "tags": [
+      "windows",
+      "websockets",
+      "performance",
+      "server",
+      "iocp"
+    ],
+    "timestamp": "2026-09-21T07:22:04.156Z",
+    "targetPath": "D:\\OllamaKnowledge\\gemini_websocket_clustering.md",
+    "sizeBytes": 940,
+    "syncedToLocalDriveD": true
+  },
+  {
+    "id": "vault-seed-02",
+    "source": "gemini",
+    "model": "gemini-3.8-flash",
+    "prompt": "Offline RAG Architektur fuer lokale Ollama Modelle mit quantisierten GGUF Gewichten",
+    "response": "Ollama kann offline durch Context-Injection in den System-Prompt optimal erweitert werden. Wenn kein Vektor-Dienst laeuft, nutzt man TF-IDF / BM25 term frequency matching auf der lokalen Festplatte (D:\\OllamaKnowledge). Bei jedem Prompt werden die Top 3 Matches formatiert als [LOKALES WISSEN AUS D:\\...] vorangestellt. Dies steigert die Faktenpraezision von 7B Modellen um ueber 40% ohne GPU-Overhead.",
+    "summary": "Leitfaden zur lueckenlosen Offline-Wissensinjektion in lokale Ollama Modelle.",
+    "tags": [
+      "ollama",
+      "rag",
+      "offline",
+      "windows",
+      "laufwerk-d"
+    ],
+    "timestamp": "2026-09-21T10:22:04.157Z",
+    "targetPath": "D:\\OllamaKnowledge\\ollama_offline_rag_guide.md",
+    "sizeBytes": 880,
+    "syncedToLocalDriveD": true
+  },
+  {
+    "id": "vault-seed-03",
+    "source": "hybrid",
+    "model": "gemini-3.1-pro-preview",
+    "prompt": "Datenschutz- und DSGVO-Checkliste fuer Hybrid-KI Workflows in Unternehmen",
+    "response": "In hybriden Setups gilt strikte Segregation: 1. PII-Filterung (Namen, IBAN, Passwoerter) vor jedem Cloud-Aufruf. 2. Lokale Vorverarbeitung mit Ollama (Llama 3 / Mistral) auf Windows 11 fuer interne Dokumente. 3. Cloud-Aufrufe an Google AI Studio nur fuer abstrahierte Schemata und Code-Refactoring ohne Kundendaten. 4. Dauerhaftes Backup aller Cloud-Erkenntnisse auf physisch getrenntes Laufwerk D:.",
+    "summary": "Datenschutz-Framework fuer den hybriden Betrieb von lokalen und Cloud-Sprachmodellen.",
+    "tags": [
+      "datenschutz",
+      "dsgvo",
+      "hybrid",
+      "security",
+      "compliance"
+    ],
+    "timestamp": "2026-09-21T11:52:04.157Z",
+    "targetPath": "D:\\OllamaKnowledge\\dsgvo_hybrid_security_blueprint.md",
+    "sizeBytes": 920,
+    "syncedToLocalDriveD": true
+  }
+]

@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "Ollama Gemini Hybrid Workstation",
+  "short_name": "HybridKI",
+  "description": "Hybrid-KI-System für Windows 11 mit lokalem Ollama und Google Gemini",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#090d16",
+  "background_color": "#090d16",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
