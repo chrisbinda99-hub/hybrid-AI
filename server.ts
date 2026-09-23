@@ -2234,59 +2234,19 @@ if not defined APP_RUNNER if exist "%LocalAppData%\\Google\\Chrome\\Application\
 
 if defined APP_RUNNER (
     echo  [OK] Starte isoliertes Windows 11 App-Fenster ohne Browser-Tabs und ohne URL-Leiste...
-    start "" "!APP_RUNNER!" --app=!TARGET_URL!
+    start "" "!APP_RUNNER!" --app="!TARGET_URL!"
 ) else (
-    echo  [OK] Starte isoliertes Einzelfenster via MSHTA Popout...
-    start mshta "javascript:window.open('!TARGET_URL!','HybridWorkstationApp','width=1400,height=920,menubar=0,toolbar=0,location=0,status=0,resizable=1');window.close();" 2>nul || start "" "!TARGET_URL!"
+    echo  [OK] Starte Workstation im Windows-Standardbrowser...
+    start "" "!TARGET_URL!"
 )
 
 echo.
-echo Workstation erfolgreich im eigenen Fenster geoeffnet!
+echo Workstation erfolgreich gestartet!
 timeout /t 2 >nul 2>&1
 `;
     res.setHeader('Content-Disposition', 'attachment; filename="Starte-Eigenes-App-Fenster.cmd"');
-    res.setHeader('Content-Type', 'application/x-bat; charset=utf-8');
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     return res.send(ownWindowCmd.trim().replace(/\r?\n/g, '\r\n'));
-  }
-
-  if (filename === 'Ollama-Workstation.hta') {
-    const htaContent = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>Ollama + Google Gemini Hybrid Workstation</title>
-<HTA:APPLICATION 
-  ID="OllamaGeminiApp"
-  APPLICATIONNAME="OllamaGeminiHybridWorkstation"
-  BORDER="thin"
-  BORDERSTYLE="normal"
-  CAPTION="yes"
-  MAXIMIZEBUTTON="yes"
-  MINIMIZEBUTTON="yes"
-  SHOWINTASKBAR="yes"
-  SINGLEINSTANCE="yes"
-  SYSMENU="yes"
-  WINDOWSTATE="maximize"
-  NAVIGABLE="yes"
-/>
-<script language="javascript">
-  window.resizeTo(1440, 920);
-  window.moveTo((screen.width - 1440)/2, (screen.height - 920)/2);
-  var target = "http://localhost:3000";
-  window.location.href = target;
-</script>
-</head>
-<body style="background:#090d16;color:#ffffff;font-family:Segoe UI, sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
-  <div style="text-align:center;padding:40px;">
-    <h2>Ollama + Google Gemini Hybrid Workstation</h2>
-    <p>Eigenes Windows 11 Anwendungsfenster laedt...</p>
-  </div>
-</body>
-</html>
-`;
-    res.setHeader('Content-Disposition', 'attachment; filename="Ollama-Workstation.hta"');
-    res.setHeader('Content-Type', 'application/hta; charset=utf-8');
-    return res.send(htaContent.trim().replace(/\r?\n/g, '\r\n'));
   }
 
   if (filename === 'Install-Windows11-App.cmd' || filename === 'Start-Hybrid-Workstation.cmd') {
