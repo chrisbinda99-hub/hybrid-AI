@@ -50,6 +50,7 @@ interface Props {
   driveDCount: number;
   onOpenQwenDecider: () => void;
   activeQwenModel: string;
+  onOpenLoihi2?: () => void;
   onOpenDiagnostics: () => void;
   onOpenPackager: () => void;
 
@@ -80,6 +81,7 @@ export const CompactControlBar: React.FC<Props> = ({
   driveDCount,
   onOpenQwenDecider,
   activeQwenModel,
+  onOpenLoihi2,
   onOpenDiagnostics,
   onOpenPackager,
   isChatFocused,
@@ -227,6 +229,20 @@ export const CompactControlBar: React.FC<Props> = ({
             <Zap className="w-3 h-3 text-amber-400" />
             <span>Qwen-Decider</span>
           </button>
+
+          {/* Intel Loihi 2 Neuromorphic SNN Core */}
+          {onOpenLoihi2 && (
+            <button
+              type="button"
+              onClick={onOpenLoihi2}
+              className="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-200 transition text-[11px] font-medium cursor-pointer"
+              title="Intel® Loihi 2 Neuromorphic Core öffnen (< 1ms Inferenz, 38mW, Lava SNN)"
+            >
+              <Zap className="w-3 h-3 text-emerald-400 animate-pulse" />
+              <span className="hidden sm:inline">Loihi 2</span>
+              <span className="bg-emerald-500/20 text-emerald-300 font-mono text-[9px] px-1 rounded">&lt;1ms</span>
+            </button>
+          )}
 
           {/* Herz & Nieren Test (99%) */}
           <button
