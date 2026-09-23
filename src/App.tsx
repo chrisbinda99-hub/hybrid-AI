@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { WindowsTitleBar } from './components/WindowsTitleBar';
+import { CompactControlBar } from './components/CompactControlBar';
 import { DetectionPanel } from './components/DetectionPanel';
 import { HybridModeSelector } from './components/HybridModeSelector';
 import { ChatMessageItem } from './components/ChatMessageItem';
@@ -54,11 +55,37 @@ import {
   Zap,
   Brain,
   Monitor,
+  Minimize2,
+  Maximize2,
 } from 'lucide-react';
 
 export default function App() {
   // PWA Install hook
   const { isInstallable, isInstalled, install: installPwa } = usePWAInstall();
+
+  // Chat Focus & Font Size State
+  const [isChatFocused, setIsChatFocused] = useState<boolean>(() => {
+    return localStorage.getItem('hybrid_chat_focused') === 'true';
+  });
+  const [chatFontSize, setChatFontSize] = useState<'normal' | 'large'>(() => {
+    return (localStorage.getItem('hybrid_chat_font_size') as 'normal' | 'large') || 'normal';
+  });
+
+  const toggleChatFocus = () => {
+    setIsChatFocused((prev) => {
+      const next = !prev;
+      localStorage.setItem('hybrid_chat_focused', String(next));
+      return next;
+    });
+  };
+
+  const toggleChatFontSize = () => {
+    setChatFontSize((prev) => {
+      const next = prev === 'normal' ? 'large' : 'normal';
+      localStorage.setItem('hybrid_chat_font_size', next);
+      return next;
+    });
+  };
 
   // Ollama State
   const [customHost, setCustomHost] = useState<string>(() => {
@@ -624,118 +651,74 @@ export default function App() {
         </div>
       )}
 
-      {/* 2. Top Header & Control Center */}
-      <header className="border-b border-slate-800/80 bg-slate-950/90 backdrop-blur px-4 py-3 shrink-0">
-        <div className="max-w-6xl mx-auto space-y-3">
-          {/* Status and Scanner Row */}
-          <DetectionPanel
-            status={ollamaStatus}
-            isScanning={isScanning}
-            onScan={scanOllama}
-            activeModel={activeOllamaModel}
-            onSelectModel={setActiveOllamaModel}
-            isDemoMode={isDemoMode}
-            onToggleDemoMode={handleToggleDemoMode}
-            customHost={customHost}
-            onChangeHost={handleHostChange}
-          />
-
-          {/* Hybrid Mode Selector */}
-          <HybridModeSelector
-            mode={hybridMode}
-            onSelectMode={setHybridMode}
-            geminiModel={activeGeminiModel}
-            onSelectGeminiModel={setActiveGeminiModel}
-            enableThinking={enableThinking}
-            onToggleThinking={() => setEnableThinking((prev) => !prev)}
-          />
-
-          {/* Drive D Persistence & System Diagnostics Quick Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/60 text-xs">
-            {/* Left: Drive D status & vault manager */}
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsDriveDOpen(true)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-200 transition text-xs font-medium cursor-pointer shadow-sm"
-                title="Laufwerk D: Wissensbestand verwalten und synchronisieren"
-              >
-                <HardDrive className="w-3.5 h-3.5 text-amber-400" />
-                <span>Laufwerk D: Tresor</span>
-                <span className="bg-amber-500/20 text-amber-300 font-mono text-[11px] px-1.5 py-0.5 rounded border border-amber-500/30">
-                  {driveDStatus?.totalEntries ?? 3} Dokumente
-                </span>
-                <span className="text-[10px] text-emerald-400 hidden sm:inline font-mono">
-                  (D:\OllamaKnowledge\)
-                </span>
-              </button>
-            </div>
-
-            {/* Center: Qwen-Decider SLM Decision Head status */}
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setInitialDiagnosticTab('qwen');
-                  setIsDiagnosticOpen(true);
-                }}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/30 text-violet-200 transition text-xs font-medium cursor-pointer shadow-sm"
-                title="Qwen-Decider SLM Decision Head, Routing & Training öffnen"
-              >
-                <Zap className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-                <span className="font-semibold text-slate-100">Qwen-Decider:</span>
-                <span className="bg-violet-500/20 text-violet-300 font-mono text-[11px] px-1.5 py-0.5 rounded border border-violet-500/30">
-                  {activeQwenDeciderModel}
-                </span>
-                <span className="text-[10px] text-emerald-400 font-mono hidden sm:inline">
-                  {lastQwenEvaluation
-                    ? `${lastQwenEvaluation.latencyMs}ms (${lastQwenEvaluation.engine.toUpperCase()})`
-                    : '< 20ms JEPA Head'}
-                </span>
-              </button>
-            </div>
-
-            {/* Right: Herz & Nieren Diagnostic Suite */}
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setInitialDiagnosticTab('tests');
-                  setIsDiagnosticOpen(true);
-                }}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-200 transition text-xs font-medium cursor-pointer shadow-sm"
-                title="System auf Herz und Nieren testen"
-              >
-                <Activity className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-                <span>Herz & Nieren Test</span>
-                <span className="bg-emerald-500/20 text-emerald-300 font-semibold text-[10px] px-1.5 py-0.5 rounded border border-emerald-500/30">
-                  99% Perfekt
-                </span>
-              </button>
-            </div>
-
-            {/* Far Right: Windows 11 Desktop-Icon 1-Click Installer */}
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsPackagerOpen(true)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-200 transition text-xs font-medium cursor-pointer shadow-sm"
-                title="Vollautomatischen Windows 11 Installer mit Desktop-Icon öffnen"
-              >
-                <Monitor className="w-3.5 h-3.5 text-cyan-400" />
-                <span className="font-semibold text-slate-100">Win 11 Desktop-Icon</span>
-                <span className="bg-cyan-500/20 text-cyan-300 font-semibold text-[10px] px-1.5 py-0.5 rounded border border-cyan-500/30">
-                  1-Klick Installer
-                </span>
-              </button>
-            </div>
+      {/* 2. Top Header & Compact Control Center */}
+      {!isChatFocused ? (
+        <CompactControlBar
+          ollamaStatus={ollamaStatus}
+          isScanning={isScanning}
+          onScan={scanOllama}
+          activeOllamaModel={activeOllamaModel}
+          onSelectOllamaModel={setActiveOllamaModel}
+          isDemoMode={isDemoMode}
+          onToggleDemoMode={handleToggleDemoMode}
+          customHost={customHost}
+          onChangeHost={handleHostChange}
+          mode={hybridMode}
+          onSelectMode={setHybridMode}
+          geminiModel={activeGeminiModel}
+          onSelectGeminiModel={setActiveGeminiModel}
+          enableThinking={enableThinking}
+          onToggleThinking={() => setEnableThinking((prev) => !prev)}
+          onOpenDriveD={() => setIsDriveDOpen(true)}
+          driveDCount={driveDStatus?.totalEntries ?? 3}
+          onOpenQwenDecider={() => {
+            setInitialDiagnosticTab('qwen');
+            setIsDiagnosticOpen(true);
+          }}
+          activeQwenModel={activeQwenDeciderModel}
+          onOpenDiagnostics={() => {
+            setInitialDiagnosticTab('tests');
+            setIsDiagnosticOpen(true);
+          }}
+          onOpenPackager={() => setIsPackagerOpen(true)}
+          isChatFocused={isChatFocused}
+          onToggleChatFocus={toggleChatFocus}
+          chatFontSize={chatFontSize}
+          onToggleChatFontSize={toggleChatFontSize}
+        />
+      ) : (
+        <div className="bg-slate-950/95 border-b border-slate-800/80 px-4 py-1.5 flex items-center justify-between text-xs text-slate-400 z-10 shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-slate-200 font-medium">Fokus-Modus (Maximales Chatfenster)</span>
+            <span className="text-slate-600 hidden sm:inline">•</span>
+            <span className="text-emerald-400 font-mono text-[11px] hidden sm:inline">{activeOllamaModel}</span>
+            <span className="text-slate-600 hidden sm:inline">+</span>
+            <span className="text-cyan-400 font-mono text-[11px] hidden sm:inline">{activeGeminiModel}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleChatFontSize}
+              className="px-2.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-medium transition cursor-pointer"
+              title="Schriftgröße umschalten"
+            >
+              {chatFontSize === 'large' ? 'Schrift: Groß (A+)' : 'Schrift: Standard (A)'}
+            </button>
+            <button
+              onClick={toggleChatFocus}
+              className="px-2.5 py-0.5 rounded bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-medium transition cursor-pointer flex items-center gap-1 shadow-sm"
+              title="Steuerleiste wieder einblenden"
+            >
+              <Minimize2 className="w-3 h-3" />
+              <span>Leiste einblenden</span>
+            </button>
           </div>
         </div>
-      </header>
+      )}
 
-      {/* 3. Main Chat Stream & Workspace */}
-      <main className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-        <div className="max-w-6xl mx-auto">
+      {/* 3. Main Chat Stream & Workspace (Gross & Übersichtlich für lange Texte) */}
+      <main className="flex-1 overflow-y-auto px-3 sm:px-6 lg:px-8 py-4 space-y-4">
+        <div className="w-full max-w-5xl 2xl:max-w-6xl mx-auto">
           {/* Error Banner */}
           {generalError && (
             <div className="mb-4 p-3.5 bg-rose-950/80 border border-rose-800/80 rounded-xl text-rose-200 text-xs flex items-center justify-between gap-3 shadow-md">
@@ -754,7 +737,7 @@ export default function App() {
 
           {/* Welcome Screen if empty */}
           {messages.length === 0 && (
-            <div className="my-8 text-center max-w-2xl mx-auto space-y-4 py-6">
+            <div className="my-8 text-center max-w-3xl mx-auto space-y-4 py-6">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-xs text-cyan-300">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
                 <span>Windows 11 Hybrid KI Workstation • Bereit</span>
@@ -764,7 +747,7 @@ export default function App() {
                 Lokales Ollama & Google Gemini im Verbund
               </h2>
 
-              <p className="text-sm text-slate-300 leading-relaxed">
+              <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
                 Dieses System erkennt automatisch Ihre lokalen Sprachmodelle auf Windows 11 und
                 kombiniert diese nahtlos mit Google Gemini Studio in der Cloud. Nutzen Sie absoluten
                 Datenschutz für sensible Daten und unbegrenzte Rechenleistung für komplexe Analysen.
@@ -840,7 +823,7 @@ export default function App() {
 
           {/* Messages Stream */}
           {messages.map((msg) => (
-            <ChatMessageItem key={msg.id} message={msg} />
+            <ChatMessageItem key={msg.id} message={msg} fontSize={chatFontSize} />
           ))}
 
           {/* Loading Indicator */}
@@ -868,8 +851,8 @@ export default function App() {
       </main>
 
       {/* 4. Bottom Prompt Input Bar */}
-      <footer className="border-t border-slate-800/80 bg-slate-950/95 backdrop-blur px-4 py-3 shrink-0">
-        <div className="max-w-6xl mx-auto">
+      <footer className="border-t border-slate-800/80 bg-slate-950/95 backdrop-blur px-3 sm:px-6 lg:px-8 py-2.5 shrink-0">
+        <div className="w-full max-w-5xl 2xl:max-w-6xl mx-auto">
           <PromptInputBar
             onSendMessage={handleSendMessage}
             isLoading={isLoading}
