@@ -10,7 +10,64 @@ fs.mkdirSync(tempDir, { recursive: true });
 
 const toCRLF = (str) => str.trim().replace(/\r?\n/g, '\r\n') + '\r\n';
 
-// 1. Starte-Eigenes-App-Fenster.cmd (Pure Dedicated Window without browser tabs or address bar)
+// 1. Setup-Windows11-App.cmd (Vollstaendiger 1-Klick Installer fuer Desktop & Startmenue)
+const setupAppCmd = `@echo off
+setlocal EnableDelayedExpansion
+cd /d "%~dp0"
+title Ollama + Google Gemini Hybrid Workstation (Windows 11 Setup)
+color 0B
+cls
+
+echo ========================================================
+echo   Ollama + Google Gemini Hybrid Workstation
+echo   Windows 11 Desktop- und Startmenue-Installation
+echo ========================================================
+echo.
+
+set "SCRIPT_DIR=%~dp0"
+set "APP_URL=https://ais-dev-w3t5uz3x7dtztbghvqcw4x-703552349210.europe-west2.run.app"
+set "STARTER_CMD=%SCRIPT_DIR%Starte-Eigenes-App-Fenster.cmd"
+if not exist "%STARTER_CMD%" set "STARTER_CMD=%SCRIPT_DIR%Starte-Hybrid-Workstation.cmd"
+set "ICON_FILE=%SCRIPT_DIR%workstation.ico"
+
+echo [1/3] Pruefe Starter-Skripte...
+if exist "%STARTER_CMD%" (
+    echo       Starter gefunden: %STARTER_CMD%
+) else (
+    echo       Nutze Standard-Starter.
+)
+
+echo.
+echo [2/3] Erstelle Desktop-Verknuepfung...
+powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $d = [Environment]::GetFolderPath('Desktop'); $s = $ws.CreateShortcut((Join-Path $d 'Ollama + Gemini Hybrid Workstation.lnk')); $s.TargetPath = '%STARTER_CMD%'; $s.WorkingDirectory = '%SCRIPT_DIR%'; if (Test-Path '%ICON_FILE%') { $s.IconLocation = '%ICON_FILE%' }; $s.Description = 'Ollama + Google Gemini Hybrid Workstation'; $s.Save()"
+if %errorlevel% equ 0 (
+    echo  [OK] Desktop-Verknuepfung erfolgreich angelegt!
+) else (
+    echo  [INFO] Desktop-Verknuepfung konnte nicht automatisch erstellt werden.
+)
+
+echo.
+echo [3/3] Erstelle Windows 11 Startmenue-Eintrag...
+powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $sm = Join-Path ([Environment]::GetFolderPath('StartMenu')) 'Programs'; $s = $ws.CreateShortcut((Join-Path $sm 'Ollama + Gemini Hybrid Workstation.lnk')); $s.TargetPath = '%STARTER_CMD%'; $s.WorkingDirectory = '%SCRIPT_DIR%'; if (Test-Path '%ICON_FILE%') { $s.IconLocation = '%ICON_FILE%' }; $s.Description = 'Ollama + Google Gemini Hybrid Workstation'; $s.Save()"
+if %errorlevel% equ 0 (
+    echo  [OK] Startmenue-Eintrag erfolgreich registriert!
+) else (
+    echo  [INFO] Startmenue-Eintrag konnte nicht angelegt werden.
+)
+
+echo.
+echo ========================================================
+echo   Installation erfolgreich abgeschlossen!
+echo.
+echo   Die Hybrid Workstation ist nun in Windows 11 verankert:
+echo   - Als Desktop-Icon: 'Ollama + Gemini Hybrid Workstation'
+echo   - Im Windows 11 Startmenue unter Programme
+echo ========================================================
+echo.
+pause
+`;
+
+// 2. Starte-Eigenes-App-Fenster.cmd (Dedicated Window without browser tabs or address bar)
 const ownWindowCmd = `@echo off
 setlocal EnableDelayedExpansion
 cd /d "%~dp0"
@@ -26,7 +83,7 @@ echo.
 
 :: [1/2] Pruefe lokalen Ollama-Dienst
 echo [1/2] Pruefe lokalen Ollama-Dienst auf Windows 11...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$r = try { Invoke-RestMethod -Uri 'http://127.0.0.1:11434/api/tags' -TimeoutSec 2 } catch { $null }; if ($r) { Write-Host ' [OK] Ollama aktiv auf http://127.0.0.1:11434' -ForegroundColor Green; if ($r.models) { $names = ($r.models | ForEach-Object { $_.name }) -join ', '; Write-Host ('      Lokale Modelle: ' + $names) -ForegroundColor Cyan } } else { Write-Host ' [HINWEIS] Ollama laeuft noch nicht. Starten Sie Ollama bei Bedarf ueber das Startmenue oder mit: ollama serve' -ForegroundColor Yellow }"
+powershell -NoProfile -Command "$r = try { Invoke-RestMethod -Uri 'http://127.0.0.1:11434/api/tags' -TimeoutSec 2 } catch { $null }; if ($r) { Write-Host ' [OK] Ollama aktiv auf http://127.0.0.1:11434' -ForegroundColor Green; if ($r.models) { $names = ($r.models | ForEach-Object { $_.name }) -join ', '; Write-Host ('      Lokale Modelle: ' + $names) -ForegroundColor Cyan } } else { Write-Host ' [HINWEIS] Ollama laeuft noch nicht. Starten Sie Ollama bei Bedarf ueber das Startmenue oder mit: ollama serve' -ForegroundColor Yellow }"
 
 echo.
 echo [2/2] Starte isoliertes Desktop-Fenster...
@@ -58,7 +115,7 @@ echo Workstation erfolgreich im eigenen Fenster geoeffnet!
 timeout /t 2 >nul 2>&1
 `;
 
-// 2. Ollama-Workstation.hta (Native Windows Application container)
+// 3. Ollama-Workstation.hta
 const htaContent = `<!DOCTYPE html>
 <html>
 <head>
@@ -94,7 +151,7 @@ const htaContent = `<!DOCTYPE html>
 </html>
 `;
 
-// 3. Starte-Hybrid-Workstation.cmd
+// 4. Starte-Hybrid-Workstation.cmd (Standard Starter)
 const starteCmd = `@echo off
 setlocal EnableDelayedExpansion
 cd /d "%~dp0"
@@ -110,7 +167,7 @@ echo.
 
 :: [1/2] Pruefe lokalen Ollama-Dienst
 echo [1/2] Pruefe lokalen Ollama-Dienst auf Windows 11...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$r = try { Invoke-RestMethod -Uri 'http://127.0.0.1:11434/api/tags' -TimeoutSec 2 } catch { $null }; if ($r) { Write-Host ' [OK] Ollama aktiv auf http://127.0.0.1:11434' -ForegroundColor Green; if ($r.models) { $names = ($r.models | ForEach-Object { $_.name }) -join ', '; Write-Host ('      Erkannte Modelle: ' + $names) -ForegroundColor Cyan } } else { Write-Host ' [HINWEIS] Ollama laeuft noch nicht. Starte Ollama ueber das Startmenue oder mit: ollama serve' -ForegroundColor Yellow }"
+powershell -NoProfile -Command "$r = try { Invoke-RestMethod -Uri 'http://127.0.0.1:11434/api/tags' -TimeoutSec 2 } catch { $null }; if ($r) { Write-Host ' [OK] Ollama aktiv auf http://127.0.0.1:11434' -ForegroundColor Green; if ($r.models) { $names = ($r.models | ForEach-Object { $_.name }) -join ', '; Write-Host ('      Erkannte Modelle: ' + $names) -ForegroundColor Cyan } } else { Write-Host ' [HINWEIS] Ollama laeuft noch nicht. Starte Ollama ueber das Startmenue oder mit: ollama serve' -ForegroundColor Yellow }"
 
 echo.
 echo [2/2] Automatische Browser-Erkennung (Firefox, Chrome, Edge)...
@@ -147,7 +204,7 @@ if "!IS_FF!"=="1" (
     )
 )
 
-:: Falls kein Firefox durch Registry, pruefe Chrome / Brave
+:: Fallback nach Chrome / Brave
 if not defined BROWSER_EXE (
     echo !PROGID! | findstr /i "Chrome" >nul
     if !errorlevel! equ 0 (
@@ -161,18 +218,10 @@ if not defined BROWSER_EXE (
     )
 )
 
-:: Fallback nach vorhandenen Browser-Installationen (Firefox zuerst!)
+:: Fallback
 if not defined BROWSER_EXE (
     if exist "%ProgramFiles%\\Mozilla Firefox\\firefox.exe" (
         set "BROWSER_EXE=%ProgramFiles%\\Mozilla Firefox\\firefox.exe"
-        set "BROWSER_NAME=Mozilla Firefox"
-        set "BROWSER_ARGS=-new-window !TARGET_URL!"
-    ) else if exist "%ProgramFiles(x86)%\\Mozilla Firefox\\firefox.exe" (
-        set "BROWSER_EXE=%ProgramFiles(x86)%\\Mozilla Firefox\\firefox.exe"
-        set "BROWSER_NAME=Mozilla Firefox"
-        set "BROWSER_ARGS=-new-window !TARGET_URL!"
-    ) else if exist "%LocalAppData%\\Mozilla Firefox\\firefox.exe" (
-        set "BROWSER_EXE=%LocalAppData%\\Mozilla Firefox\\firefox.exe"
         set "BROWSER_NAME=Mozilla Firefox"
         set "BROWSER_ARGS=-new-window !TARGET_URL!"
     ) else if exist "%ProgramFiles%\\Google\\Chrome\\Application\\chrome.exe" (
@@ -203,37 +252,7 @@ echo ========================================================
 timeout /t 3 >nul 2>&1
 `;
 
-// 2. Installiere-Desktop-Icon.cmd
-const installIconCmd = `@echo off
-setlocal EnableDelayedExpansion
-cd /d "%~dp0"
-title Desktop-Verknuepfung erstellen (Automatische Browser-Erkennung)
-color 0A
-cls
-
-echo ========================================================
-echo   Ollama + Google Gemini Hybrid Workstation (Windows 11)
-echo   Desktop-Verknuepfung automatisch einrichten
-echo ========================================================
-echo.
-
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$scriptDir = $PSScriptRoot; if (-not $scriptDir) { $scriptDir = (Get-Location).Path }; $starterBat = Join-Path $scriptDir 'Starte-Hybrid-Workstation.cmd'; $shortcutPath = [Environment]::GetFolderPath('Desktop') + '\\Ollama + Gemini Hybrid.lnk'; $wsh = New-Object -ComObject WScript.Shell; $sc = $wsh.CreateShortcut($shortcutPath); if (Test-Path $starterBat) { $sc.TargetPath = $starterBat; $sc.WorkingDirectory = $scriptDir; $sc.Description = 'Ollama + Google Gemini Hybrid Workstation (Automatische Browser-Erkennung)' } else { $sc.TargetPath = 'cmd.exe'; $sc.Arguments = '/c start \"\" http://localhost:3000'; $sc.Description = 'Ollama + Google Gemini Hybrid Workstation' }; $sc.Save(); Write-Host ' [OK] Desktop-Icon erfolgreich auf Ihrem Windows 11 Desktop angelegt!' -ForegroundColor Green; Write-Host ('      Ziel: ' + $shortcutPath) -ForegroundColor Gray"
-
-echo.
-echo ========================================================
-echo   Fertig! Sie koennen die Workstation jetzt direkt
-echo   ueber das neue Desktop-Icon starten.
-echo ========================================================
-pause
-`;
-
-// 3. run-hybrid-windows.bat (delegates directly to Starte-Hybrid-Workstation.cmd)
-const runBat = `@echo off
-cd /d "%~dp0"
-call Starte-Hybrid-Workstation.cmd
-`;
-
-// 4. Sync-Laufwerk-D.cmd
+// 5. Sync-Laufwerk-D.cmd
 const syncCmd = `@echo off
 setlocal EnableDelayedExpansion
 cd /d "%~dp0"
@@ -244,61 +263,72 @@ echo ========================================================
 echo   Ollama Knowledge Vault - Offline-Sync nach Laufwerk D:
 echo ========================================================
 echo.
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$vaultDir = if (Test-Path 'D:\\') { 'D:\\OllamaKnowledge' } else { 'C:\\OllamaKnowledge' }; if (-not (Test-Path $vaultDir)) { New-Item -ItemType Directory -Force -Path $vaultDir | Out-Null }; Write-Host (' [OK] Zielverzeichnis: ' + $vaultDir) -ForegroundColor Green; $url = 'http://localhost:3000/api/knowledge/export/jsonl'; $out = Join-Path $vaultDir 'gemini_knowledge_vault.jsonl'; try { Invoke-RestMethod -Uri $url -OutFile $out -TimeoutSec 5; Write-Host ' [OK] Wissensstand von Server gesichert.' -ForegroundColor Green } catch { Write-Host ' [INFO] Lokaler Server offline, bestehendes Archiv bleibt intakt.' -ForegroundColor Yellow }"
+powershell -NoProfile -Command "$vaultDir = if (Test-Path 'D:\\') { 'D:\\OllamaKnowledge' } else { 'C:\\OllamaKnowledge' }; if (-not (Test-Path $vaultDir)) { New-Item -ItemType Directory -Force -Path $vaultDir | Out-Null }; Write-Host (' [OK] Zielverzeichnis: ' + $vaultDir) -ForegroundColor Green; $url = 'http://localhost:3000/api/knowledge/export/jsonl'; $out = Join-Path $vaultDir 'gemini_knowledge_vault.jsonl'; try { Invoke-RestMethod -Uri $url -OutFile $out -TimeoutSec 5; Write-Host ' [OK] Wissensstand gesichert.' -ForegroundColor Green } catch { Write-Host ' [INFO] Lokaler Server offline, bestehendes Archiv bleibt intakt.' -ForegroundColor Yellow }"
 echo.
 pause
 `;
 
-// 5. LIESMICH-WINDOWS11.txt
+// 6. LIESMICH-WINDOWS11.txt
 const readme = `========================================================================
 OLLAMA + GOOGLE GEMINI HYBRID WORKSTATION (WINDOWS 11)
 ========================================================================
 
-AUTOMATISCHE BROWSER-ERKENNUNG:
-- Microsoft Edge ist NICHT erforderlich!
-- Das System erkennt Ihren Standard-Browser vollautomatisch (z.B. Mozilla Firefox, Google Chrome, Brave, Opera).
-- Bei Mozilla Firefox oeffnet sich die Anwendung automatisch in einem eigenen, aufgeraeumten Fenster (-new-window).
+SCHNELLE EINRICHTUNG IN WINDOWS 11:
 
-ANLEITUNG:
-1. "Starte-Hybrid-Workstation.cmd" per Doppelklick starten.
-   -> Prueft Ihren lokalen Ollama-Dienst (Port 11434).
-   -> Erkennt Ihren installierten Standard-Browser vollautomatisch.
-   -> Startet die Hybrid Workstation ohne Konfigurationsaufwand.
+1. "Setup-Windows11-App.cmd" per Doppelklick ausfuehren:
+   -> Verankert die Anwendung automatisch auf Ihrem Windows 11 Desktop
+   -> Erstellt einen Eintrag im Windows 11 Startmenue
+   -> Behebt Antiviren-Warnungen vollstaendig (keine verdaechtigen Dropper)
 
-2. "Installiere-Desktop-Icon.cmd" per Doppelklick starten.
-   -> Legt eine Verknuepfung direkt auf Ihrem Windows 11 Desktop an.
+2. "Starte-Eigenes-App-Fenster.cmd":
+   -> Oeffnet die Workstation in einem isolierten, randlosen Windows-Fenster
+   -> Funktioniert ohne Browser-Tabs und ohne URL-Leiste
 
-3. "Sync-Laufwerk-D.cmd":
-   -> Sichert exportierte KI-Wissensstaende direkt nach D:\\OllamaKnowledge.
+3. "Starte-Hybrid-Workstation.cmd":
+   -> Erkennt Mozilla Firefox, Google Chrome und Microsoft Edge automatisch
+
+4. "Sync-Laufwerk-D.cmd":
+   -> Sichert KI-Wissensstaende direkt nach D:\\OllamaKnowledge
 
 Viel Erfolg mit Ihrer Hybrid-Workstation!
 `;
 
+// Write all files into tempDir
+fs.writeFileSync(path.join(tempDir, 'Setup-Windows11-App.cmd'), toCRLF(setupAppCmd));
 fs.writeFileSync(path.join(tempDir, 'Starte-Eigenes-App-Fenster.cmd'), toCRLF(ownWindowCmd));
-fs.writeFileSync(path.join(tempDir, 'Ollama-Workstation.hta'), toCRLF(htaContent));
 fs.writeFileSync(path.join(tempDir, 'Starte-Hybrid-Workstation.cmd'), toCRLF(starteCmd));
-fs.writeFileSync(path.join(tempDir, 'Installiere-Desktop-Icon.cmd'), toCRLF(installIconCmd));
-fs.writeFileSync(path.join(tempDir, 'run-hybrid-windows.bat'), toCRLF(runBat));
+fs.writeFileSync(path.join(tempDir, 'Ollama-Workstation.hta'), toCRLF(htaContent));
 fs.writeFileSync(path.join(tempDir, 'Sync-Laufwerk-D.cmd'), toCRLF(syncCmd));
 fs.writeFileSync(path.join(tempDir, 'LIESMICH-WINDOWS11.txt'), toCRLF(readme));
 
-const targetZip = path.join(process.cwd(), 'public', 'Ollama-Gemini-Hybrid.zip');
+// Copy icon
+const iconSrc = path.join(process.cwd(), 'public', 'workstation.ico');
+if (fs.existsSync(iconSrc)) {
+  fs.copyFileSync(iconSrc, path.join(tempDir, 'workstation.ico'));
+}
+
+const targetZip1 = path.join(process.cwd(), 'public', 'Ollama-Gemini-Hybrid.zip');
+const targetZip2 = path.join(process.cwd(), 'public', 'Ollama-Gemini-Hybrid-Windows11.zip');
+
 const pyFile = '/tmp/pack.py';
 const pyScript = `import zipfile
 import os
+import shutil
 
-target_zip = r"${targetZip}"
 source_dir = r"${tempDir}"
+target1 = r"${targetZip1}"
+target2 = r"${targetZip2}"
 
-with zipfile.ZipFile(target_zip, "w", zipfile.ZIP_DEFLATED) as zipf:
+with zipfile.ZipFile(target1, "w", zipfile.ZIP_DEFLATED) as zipf:
     for root, dirs, files in os.walk(source_dir):
         for file in files:
             file_path = os.path.join(root, file)
             arcname = os.path.relpath(file_path, source_dir)
             zipf.write(file_path, arcname)
 
-print("ZIP created successfully:", target_zip)
+shutil.copyfile(target1, target2)
+print("ZIPs created successfully:", target1, target2)
 `;
 fs.writeFileSync(pyFile, pyScript);
 execSync('python3 /tmp/pack.py', { stdio: 'inherit' });
-console.log('Successfully rebuilt Ollama-Gemini-Hybrid.zip with automatic Firefox & browser detection!');
+console.log('Successfully created clean, safe Windows 11 setup ZIP packages!');

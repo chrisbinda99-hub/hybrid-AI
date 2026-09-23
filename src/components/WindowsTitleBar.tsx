@@ -179,15 +179,15 @@ export const WindowsTitleBar: React.FC<Props> = ({
           </button>
         )}
 
-        {canInstallPwa && (
+        {!isDedicatedWindow && (
           <button
             onClick={onInstallPwa}
             id="titlebar-pwa-install-btn"
-            className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded border border-cyan-500/30 transition-colors cursor-pointer"
-            title="Als Desktop-App installieren"
+            className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded font-medium shadow-sm transition-all cursor-pointer"
+            title="In Windows 11 als App verankern (Startmenü / Taskleiste / PWA)"
           >
-            <Monitor className="w-3 h-3" />
-            <span>App installieren</span>
+            <Monitor className="w-3.5 h-3.5" />
+            <span>App in Win11 verankern</span>
           </button>
         )}
 

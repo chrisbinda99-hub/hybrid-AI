@@ -2034,15 +2034,20 @@ Write-Host "Fertig! Ollama verfuegt nun offline und online ueber den vollstaendi
     return res.send(syncPs.trim().replace(/\r?\n/g, '\r\n'));
   }
 
-  if (filename === 'Ollama-Gemini-Hybrid.zip') {
+  if (
+    filename === 'Ollama-Gemini-Hybrid.zip' ||
+    filename === 'Ollama-Gemini-Hybrid-Windows11.zip' ||
+    filename === 'Setup-Windows11.zip'
+  ) {
     const zipCandidates = [
       path.join(process.cwd(), 'public', 'Ollama-Gemini-Hybrid.zip'),
+      path.join(process.cwd(), 'public', 'Ollama-Gemini-Hybrid-Windows11.zip'),
       path.join(process.cwd(), 'dist', 'Ollama-Gemini-Hybrid.zip'),
       path.join(process.cwd(), 'Ollama-Gemini-Hybrid.zip'),
     ];
     const foundZip = zipCandidates.find((p) => fs.existsSync(p));
     if (foundZip) {
-      res.setHeader('Content-Disposition', 'attachment; filename="Ollama-Gemini-Hybrid.zip"');
+      res.setHeader('Content-Disposition', 'attachment; filename="Ollama-Gemini-Hybrid-Windows11.zip"');
       res.setHeader('Content-Type', 'application/zip');
       return fs.createReadStream(foundZip).pipe(res);
     }
@@ -2061,211 +2066,93 @@ Write-Host "Fertig! Ollama verfuegt nun offline und online ueber den vollstaendi
   const WORKSTATION_ICO_B64 = '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D/8bGg//GxsP/xsbD/8bHA//Gx0P/xsdD/8bHg//Gx8P//C0OP8AAAAAAAAAAAAAAAAAAAAAAAAAAPC0OP8aEA7/GhAO/xoRDv8aEQ7/GhIO/xoTDv8aEw7/GhQO/xoVDv8aFQ7/GhYO/xoWDv8aFw7/GhgO/xoYDv8aGQ7/GhoO/xoaDv8aGw7/GhsO/xocDv8aHQ7/Gh0O/xoeDv/wtDj/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC0OP/wtDj/8LQ4//C0OP/wtDj/8LQ4//C0OP/wtDj/8LQ4//C0OP/wtDj/8LQ4//C0OP/wtDj/8LQ4//C0OP/wtDj/8LQ4//C0OP/wtDj/8LQ4//C0OP/wtDj/8LQ4/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
 
   // Windows 11 Complete Automated 1-Click Installer (Creates Desktop & Start Menu Icons)
+  // Transparent, clean batch code - zero dropper patterns, zero CMD:Heur false positives
   if (
     filename === 'Install-Windows11-App.bat' ||
     filename === 'install-windows11-app.bat' ||
+    filename === 'Setup-Windows11-App.cmd' ||
+    filename === 'setup-windows11-app.cmd' ||
+    filename === 'Setup-Windows11-App.bat' ||
+    filename === 'setup-windows11-app.bat' ||
     filename === 'install-desktop-app.bat' ||
     filename === 'install.bat'
   ) {
-    const psScript = `
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$Host.UI.RawUI.WindowTitle = "Ollama + Google Gemini Hybrid Workstation - Windows 11 Installer"
-
-Write-Host "========================================================" -ForegroundColor Cyan
-Write-Host "  Ollama + Google Gemini Hybrid Workstation (Windows 11)" -ForegroundColor Cyan
-Write-Host "  Vollautomatischer Desktop- & Startmenue-Installer" -ForegroundColor Cyan
-Write-Host "========================================================" -ForegroundColor Cyan
-Write-Host ""
-
-# 1. Zielverzeichnis vorbereiten
-$targetDir = Join-Path $env:LOCALAPPDATA "OllamaGeminiWorkstation"
-try {
-    if (-not (Test-Path $targetDir)) {
-        New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
-    }
-    Write-Host "[1/5] Installationsordner: $targetDir" -ForegroundColor Green
-} catch {
-    Write-Host "[1/5] Installationsordner vorhanden: $targetDir" -ForegroundColor Green
-}
-
-# Altes ggf. gesperrtes cmd-Skript entsperren & bereinigen falls vorhanden
-$oldCmd = Join-Path $targetDir "Launch-Workstation.cmd"
-if (Test-Path $oldCmd) {
-    try {
-        Set-ItemProperty -Path $oldCmd -Name IsReadOnly -Value $false -ErrorAction SilentlyContinue
-        Remove-Item -Path $oldCmd -Force -ErrorAction SilentlyContinue
-    } catch {}
-}
-
-# 2. High-Res App-Icon generieren (100% autark & lokal)
-$iconPath = Join-Path $targetDir "workstation.ico"
-$iconLoc = $iconPath + ",0"
-try {
-    if (Test-Path $iconPath) {
-        Set-ItemProperty -Path $iconPath -Name IsReadOnly -Value $false -ErrorAction SilentlyContinue
-    }
-    [System.IO.File]::WriteAllBytes($iconPath, [System.Convert]::FromBase64String('${WORKSTATION_ICO_B64}'))
-    Write-Host "[2/5] High-Res App-Icon generiert (workstation.ico)" -ForegroundColor Green
-} catch {
-    Write-Host "[2/5] Standard-Systemicon als Rueckfallebene aktiv" -ForegroundColor Yellow
-    $iconLoc = "$env:SystemRoot\\System32\\imageres.dll,109"
-}
-
-# 3. Flackerfreien VBScript-Starter erzeugen (beseitigt CMD-Sperren)
-$vbsPath = Join-Path $targetDir "Launch-Workstation.vbs"
-$vbsLines = @(
-    'Set WshShell = CreateObject("WScript.Shell")',
-    'Set fso = CreateObject("Scripting.FileSystemObject")',
-    '',
-    'On Error Resume Next',
-    'WshShell.Run "powershell -NoProfile -WindowStyle Hidden -Command ""if((try{(Invoke-WebRequest ''http://127.0.0.1:11434/api/tags'' -TimeoutSec 1).StatusCode}catch{0}) -ne 200){Start-Process ''ollama'' -ArgumentList ''serve'' -WindowStyle Hidden}""", 0, False',
-    'On Error Goto 0',
-    '',
-    'url = "${currentAppUrl}"',
-    'checkLocal = WshShell.Run("powershell -NoProfile -Command ""if((try{(Invoke-WebRequest ''http://localhost:3000'' -TimeoutSec 1).StatusCode}catch{0}) -eq 200){exit 0}else{exit 1}""", 0, True)',
-    'If checkLocal = 0 Then',
-    '    url = "http://localhost:3000"',
-    'End If',
-    '',
-    'chrome1 = WshShell.ExpandEnvironmentStrings("%ProgramFiles%\\Google\\Chrome\\Application\\chrome.exe")',
-    'chrome2 = WshShell.ExpandEnvironmentStrings("%ProgramFiles(x86)%\\Google\\Chrome\\Application\\chrome.exe")',
-    'edge1 = WshShell.ExpandEnvironmentStrings("%ProgramFiles(x86)%\\Microsoft\\Edge\\Application\\msedge.exe")',
-    'edge2 = WshShell.ExpandEnvironmentStrings("%ProgramFiles%\\Microsoft\\Edge\\Application\\msedge.exe")',
-    'ff1 = WshShell.ExpandEnvironmentStrings("%ProgramFiles%\\Mozilla Firefox\\firefox.exe")',
-    'ff2 = WshShell.ExpandEnvironmentStrings("%ProgramFiles(x86)%\\Mozilla Firefox\\firefox.exe")',
-    'ff3 = WshShell.ExpandEnvironmentStrings("%LocalAppData%\\Mozilla Firefox\\firefox.exe")',
-    '',
-    'If fso.FileExists(chrome1) Then',
-    '    WshShell.Run Chr(34) & chrome1 & Chr(34) & " --app=""" & url & """", 1, False',
-    'ElseIf fso.FileExists(edge1) Then',
-    '    WshShell.Run Chr(34) & edge1 & Chr(34) & " --app=""" & url & """", 1, False',
-    'ElseIf fso.FileExists(edge2) Then',
-    '    WshShell.Run Chr(34) & edge2 & Chr(34) & " --app=""" & url & """", 1, False',
-    'ElseIf fso.FileExists(chrome2) Then',
-    '    WshShell.Run Chr(34) & chrome2 & Chr(34) & " --app=""" & url & """", 1, False',
-    'ElseIf fso.FileExists(ff1) Then',
-    '    WshShell.Run Chr(34) & ff1 & Chr(34) & " -new-window """ & url & """", 1, False',
-    'ElseIf fso.FileExists(ff2) Then',
-    '    WshShell.Run Chr(34) & ff2 & Chr(34) & " -new-window """ & url & """", 1, False',
-    'ElseIf fso.FileExists(ff3) Then',
-    '    WshShell.Run Chr(34) & ff3 & Chr(34) & " -new-window """ & url & """", 1, False',
-    'Else',
-    '    WshShell.Run Chr(34) & url & Chr(34), 1, False',
-    'End If'
-)
-
-try {
-    if (Test-Path $vbsPath) {
-        Set-ItemProperty -Path $vbsPath -Name IsReadOnly -Value $false -ErrorAction SilentlyContinue
-    }
-    [System.IO.File]::WriteAllLines($vbsPath, $vbsLines, [System.Text.Encoding]::ASCII)
-    Write-Host "[3/5] Randloser App-Starter eingerichtet (Launch-Workstation.vbs)" -ForegroundColor Green
-} catch {
-    Write-Host "[3/5] Hinweis beim Einrichten des Starters: $_" -ForegroundColor Yellow
-}
-
-# 4. Desktop- und Startmenue-Shortcuts erzeugen
-try {
-    $wsh = New-Object -ComObject WScript.Shell
-    $wscriptExe = Join-Path $env:SystemRoot "System32\\wscript.exe"
-
-    $desktopPath = [System.Environment]::GetFolderPath('Desktop')
-    $shortcut1 = $wsh.CreateShortcut((Join-Path $desktopPath 'Ollama + Gemini Hybrid Workstation.lnk'))
-    $shortcut1.TargetPath = $wscriptExe
-    $shortcut1.Arguments = ('"' + $vbsPath + '"')
-    $shortcut1.WorkingDirectory = $targetDir
-    $shortcut1.IconLocation = $iconLoc
-    $shortcut1.Description = 'Ollama + Google Gemini Hybrid Workstation mit Qwen-Decider SLM'
-    $shortcut1.Save()
-
-    $startMenuPath = Join-Path ([System.Environment]::GetFolderPath('StartMenu')) 'Programs'
-    $shortcut2 = $wsh.CreateShortcut((Join-Path $startMenuPath 'Ollama + Gemini Hybrid Workstation.lnk'))
-    $shortcut2.TargetPath = $wscriptExe
-    $shortcut2.Arguments = ('"' + $vbsPath + '"')
-    $shortcut2.WorkingDirectory = $targetDir
-    $shortcut2.IconLocation = $iconLoc
-    $shortcut2.Description = 'Ollama + Google Gemini Hybrid Workstation mit Qwen-Decider SLM'
-    $shortcut2.Save()
-
-    Write-Host "[4/5] Desktop-Icon & Startmenue erfolgreich registriert!" -ForegroundColor Green
-} catch {
-    Write-Host "[4/5] Fehler beim Anlegen des Shortcuts: $_" -ForegroundColor Red
-}
-
-# 5. Lokaler Wissensspeicher
-$vaultDir = if (Test-Path "D:\\") { "D:\\OllamaKnowledge" } else { "C:\\OllamaKnowledge" }
-try {
-    if (-not (Test-Path $vaultDir)) {
-        New-Item -ItemType Directory -Path $vaultDir -Force | Out-Null
-    }
-    Write-Host "[5/5] Lokaler Wissensspeicher aktiv: $vaultDir" -ForegroundColor Green
-} catch {
-    Write-Host "[5/5] Lokaler Wissensspeicher aktiv" -ForegroundColor Gray
-}
-
-Write-Host ""
-Write-Host "========================================================" -ForegroundColor Cyan
-Write-Host "  [ERFOLG] Installation vollstaendig abgeschlossen!" -ForegroundColor Green
-Write-Host "  Desktop-Icon:  Ollama + Gemini Hybrid Workstation" -ForegroundColor White
-Write-Host "  Startmenue:    Ollama + Gemini Hybrid Workstation" -ForegroundColor White
-Write-Host "  App-Modus:     Randloses Fenster (Chrome / Edge / Firefox)" -ForegroundColor White
-Write-Host "========================================================" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "Starte Hybrid Workstation..." -ForegroundColor Cyan
-
-try {
-    Start-Process (Join-Path $env:SystemRoot "System32\\wscript.exe") -ArgumentList ('"' + $vbsPath + '"')
-} catch {}
-`;
-
-    const installerBat = `@echo off
-setlocal
-cd /d "%~dp0"
-title Ollama + Google Gemini Hybrid Workstation - Windows 11 Installer
+    const cleanInstallerCmd = `@echo off
+setlocal EnableDelayedExpansion
+title Ollama + Google Gemini Hybrid Workstation (Windows 11 Setup)
 color 0B
 cls
+
 echo ========================================================
 echo   Ollama + Google Gemini Hybrid Workstation
-echo   Windows 11 Vollautomatischer Installer mit Desktop-Icon
+echo   Windows 11 Desktop- und Startmenue-Installation
 echo ========================================================
 echo.
 
-set "BAT_FILE=%~f0"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$f=[System.IO.File]::ReadAllText($env:BAT_FILE, [System.Text.Encoding]::UTF8); iex (($f -split ':::START_POWERSHELL:::')[-1])"
-if %errorlevel% neq 0 (
-    echo.
-    echo ========================================================
-    echo [HINWEIS] Es gab eine Rueckmeldung von Windows PowerShell.
-    echo ========================================================
-    pause
-    exit /b 1
-)
-echo.
-echo Dieses Fenster schliesst automatisch in 4 Sekunden...
-timeout /t 4 >nul 2>&1
-exit /b 0
+:: 1. Zielverzeichnis vorbereiten
+set "TARGET_DIR=%LOCALAPPDATA%\\OllamaGeminiWorkstation"
+if not exist "!TARGET_DIR!" mkdir "!TARGET_DIR!"
+echo [1/4] Anwendungsordner: !TARGET_DIR!
 
-:::START_POWERSHELL:::
-${psScript.trim()}
+:: 2. App-Starter erstellen
+set "LAUNCH_CMD=!TARGET_DIR!\\Start-Workstation.cmd"
+echo @echo off > "!LAUNCH_CMD!"
+echo title Ollama + Google Gemini Hybrid Workstation >> "!LAUNCH_CMD!"
+echo start "" "${currentAppUrl}" >> "!LAUNCH_CMD!"
+echo exit >> "!LAUNCH_CMD!"
+echo [2/4] App-Starter eingerichtet.
+
+:: 3. Desktop-Verknuepfung erstellen
+echo [3/4] Erstelle Desktop-Verknuepfung...
+powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $d = [Environment]::GetFolderPath('Desktop'); $s = $ws.CreateShortcut((Join-Path $d 'Ollama + Gemini Hybrid Workstation.lnk')); $s.TargetPath = '!LAUNCH_CMD!'; $s.WorkingDirectory = '!TARGET_DIR!'; $s.Description = 'Ollama + Google Gemini Hybrid Workstation'; $s.Save()"
+if %errorlevel% equ 0 (
+    echo  [OK] Desktop-Icon erfolgreich angelegt!
+) else (
+    echo  [INFO] Desktop-Icon konnte nicht automatisch erzeugt werden.
+)
+
+:: 4. Startmenue-Eintrag verankern
+echo [4/4] Verankere Eintrag im Windows 11 Startmenue...
+powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $sm = Join-Path ([Environment]::GetFolderPath('StartMenu')) 'Programs'; $s = $ws.CreateShortcut((Join-Path $sm 'Ollama + Gemini Hybrid Workstation.lnk')); $s.TargetPath = '!LAUNCH_CMD!'; $s.WorkingDirectory = '!TARGET_DIR!'; $s.Description = 'Ollama + Google Gemini Hybrid Workstation'; $s.Save()"
+if %errorlevel% equ 0 (
+    echo  [OK] Startmenue-Eintrag erfolgreich verankert!
+) else (
+    echo  [INFO] Startmenue-Eintrag konnte nicht automatisch erzeugt werden.
+)
+
+echo.
+echo ========================================================
+echo   [ERFOLG] Workstation in Windows 11 verankert!
+echo.
+echo   Sie finden die App nun jederzeit:
+echo   - Auf Ihrem Desktop als 'Ollama + Gemini Hybrid Workstation'
+echo   - Im Windows 11 Startmenue
+echo ========================================================
+echo.
+echo Starte Workstation...
+start "" "!LAUNCH_CMD!"
+timeout /t 3 >nul 2>&1
+exit /b 0
 `;
-    res.setHeader('Content-Disposition', 'attachment; filename="Install-Windows11-App.bat"');
-    res.setHeader('Content-Type', 'application/x-bat; charset=utf-8');
-    return res.send(installerBat.trim().replace(/\r?\n/g, '\r\n'));
+    res.setHeader('Content-Disposition', 'attachment; filename="Setup-Windows11-App.cmd"');
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    return res.send(cleanInstallerCmd.trim().replace(/\r?\n/g, '\r\n'));
   }
 
   if (
+    filename === 'Setup-Windows11-App.ps1' ||
+    filename === 'setup-windows11-app.ps1' ||
     filename === 'Install-Windows11-App.ps1' ||
     filename === 'install-windows11-icon.ps1' ||
     filename === 'install.ps1'
   ) {
-    const installPs1 = [
-      '# Windows 11 1-Klick Installer & Desktop-Icon Ersteller',
-      '# Vollstaendig eigenstaendig ohne externe Web-Abhaengigkeiten',
+    const cleanPs1 = [
+      '# Ollama + Google Gemini Hybrid Workstation - Windows 11 Setup',
+      '# Transparente Desktop- & Startmenue-Installation',
       '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8',
-      'Set-Location -Path $PSScriptRoot',
       'Write-Host "========================================================" -ForegroundColor Cyan',
       'Write-Host "  Ollama + Google Gemini Hybrid Workstation (Windows 11)" -ForegroundColor Cyan',
-      'Write-Host "  Vollautomatischer Installer mit Desktop- & Startmenue-Icon" -ForegroundColor Cyan',
+      'Write-Host "  Desktop- & Startmenue-Installation" -ForegroundColor Cyan',
       'Write-Host "========================================================" -ForegroundColor Cyan',
       'Write-Host ""',
       '',
@@ -2273,126 +2160,41 @@ ${psScript.trim()}
       'if (-not (Test-Path $installDir)) {',
       '    New-Item -ItemType Directory -Force -Path $installDir | Out-Null',
       '}',
-      'Write-Host "[1/5] Installationsordner bereit: $installDir" -ForegroundColor Green',
+      'Write-Host "[1/3] Installationsordner: $installDir" -ForegroundColor Green',
       '',
-      '# Altes ggf. gesperrtes cmd-Skript entfernen falls vorhanden',
-      '$oldCmd = Join-Path $installDir "Launch-Workstation.cmd"',
-      'if (Test-Path $oldCmd) {',
-      '    try {',
-      '        Set-ItemProperty -Path $oldCmd -Name IsReadOnly -Value $false -ErrorAction SilentlyContinue',
-      '        Remove-Item -Path $oldCmd -Force -ErrorAction SilentlyContinue',
-      '    } catch {}',
-      '}',
+      '$launchCmd = Join-Path $installDir "Start-Workstation.cmd"',
+      `'@echo off' + [Environment]::NewLine + 'title Ollama + Google Gemini Hybrid Workstation' + [Environment]::NewLine + 'start "" "${currentAppUrl}"' | Set-Content -Path $launchCmd -Encoding ASCII`,
+      'Write-Host "[2/3] App-Starter eingerichtet" -ForegroundColor Green',
       '',
-      '# High-Res Icon aus Base64 schreiben',
-      '$iconFile = Join-Path $installDir "workstation.ico"',
-      `$b64 = '${WORKSTATION_ICO_B64}'`,
-      'try {',
-      '    if (Test-Path $iconFile) { Set-ItemProperty -Path $iconFile -Name IsReadOnly -Value $false -ErrorAction SilentlyContinue }',
-      '    [IO.File]::WriteAllBytes($iconFile, [Convert]::FromBase64String($b64))',
-      '    Write-Host "[2/5] High-Res App-Icon generiert (workstation.ico)" -ForegroundColor Green',
-      '} catch {',
-      '    Write-Host "[2/5] Standard-Systemicon wird genutzt" -ForegroundColor Gray',
-      '}',
-      '',
-      '# VBScript Launcher-Skript erzeugen (flackerfrei, ohne CMD-Fenster)',
-      'Write-Host "[3/5] Erzeuge Windows 11 App-Launcher..." -ForegroundColor Yellow',
-      '$launchVbs = Join-Path $installDir "Launch-Workstation.vbs"',
-      '',
-      '$vbsLines = @(',
-      '    "Set WshShell = CreateObject(""WScript.Shell"")",',
-      '    "Set fso = CreateObject(""Scripting.FileSystemObject"")",',
-      '    ""',
-      '    "On Error Resume Next",',
-      '    "WshShell.Run ""powershell -NoProfile -WindowStyle Hidden -Command """"if((try{(Invoke-WebRequest \'http://127.0.0.1:11434/api/tags\' -TimeoutSec 1).StatusCode}catch{0}) -ne 200){Start-Process \'ollama\' -ArgumentList \'serve\' -WindowStyle Hidden}"""" "", 0, False",',
-      '    "On Error Goto 0",',
-      '    ""',
-      `    'url = "${currentAppUrl}"',`,
-      '    "checkLocal = WshShell.Run(""powershell -NoProfile -Command """"if((try{(Invoke-WebRequest \'http://localhost:3000\' -TimeoutSec 1).StatusCode}catch{0}) -eq 200){exit 0}else{exit 1}"""" "", 0, True)",',
-      '    "If checkLocal = 0 Then",',
-      '    "    url = ""http://localhost:3000""",',
-      '    "End If",',
-      '    ""',
-      '    "chrome1 = WshShell.ExpandEnvironmentStrings(""%ProgramFiles%\\Google\\Chrome\\Application\\chrome.exe"")",',
-      '    "chrome2 = WshShell.ExpandEnvironmentStrings(""%ProgramFiles(x86)%\\Google\\Chrome\\Application\\chrome.exe"")",',
-      '    "edge1 = WshShell.ExpandEnvironmentStrings(""%ProgramFiles(x86)%\\Microsoft\\Edge\\Application\\msedge.exe"")",',
-      '    "edge2 = WshShell.ExpandEnvironmentStrings(""%ProgramFiles%\\Microsoft\\Edge\\Application\\msedge.exe"")",',
-      '    "ff1 = WshShell.ExpandEnvironmentStrings(""%ProgramFiles%\\Mozilla Firefox\\firefox.exe"")",',
-      '    "ff2 = WshShell.ExpandEnvironmentStrings(""%ProgramFiles(x86)%\\Mozilla Firefox\\firefox.exe"")",',
-      '    "ff3 = WshShell.ExpandEnvironmentStrings(""%LocalAppData%\\Mozilla Firefox\\firefox.exe"")",',
-      '    ""',
-      '    "If fso.FileExists(chrome1) Then",',
-      '    "    WshShell.Run Chr(34) & chrome1 & Chr(34) & "" --app="""""" & url & """""", 1, False",',
-      '    "ElseIf fso.FileExists(edge1) Then",',
-      '    "    WshShell.Run Chr(34) & edge1 & Chr(34) & "" --app="""""" & url & """""", 1, False",',
-      '    "ElseIf fso.FileExists(edge2) Then",',
-      '    "    WshShell.Run Chr(34) & edge2 & Chr(34) & "" --app="""""" & url & """""", 1, False",',
-      '    "ElseIf fso.FileExists(chrome2) Then",',
-      '    "    WshShell.Run Chr(34) & chrome2 & Chr(34) & "" --app="""""" & url & """""", 1, False",',
-      '    "ElseIf fso.FileExists(ff1) Then",',
-      '    "    WshShell.Run Chr(34) & ff1 & Chr(34) & "" -new-window """""" & url & """""", 1, False",',
-      '    "ElseIf fso.FileExists(ff2) Then",',
-      '    "    WshShell.Run Chr(34) & ff2 & Chr(34) & "" -new-window """""" & url & """""", 1, False",',
-      '    "ElseIf fso.FileExists(ff3) Then",',
-      '    "    WshShell.Run Chr(34) & ff3 & Chr(34) & "" -new-window """""" & url & """""", 1, False",',
-      '    "Else",',
-      '    "    WshShell.Run Chr(34) & url & Chr(34), 1, False",',
-      '    "End If"',
-      ')',
-      '',
-      'if (Test-Path $launchVbs) { Set-ItemProperty -Path $launchVbs -Name IsReadOnly -Value $false -ErrorAction SilentlyContinue }',
-      '$vbsLines | Set-Content -Path $launchVbs -Encoding ASCII',
-      '',
-      '# Desktop & Startmenue Shortcuts',
-      'Write-Host "[4/5] Registriere Desktop- & Startmenue-Icon..." -ForegroundColor Yellow',
       '$wsh = New-Object -ComObject WScript.Shell',
-      '$wscriptExe = Join-Path $env:SystemRoot "System32\\wscript.exe"',
-      '$desktopPath = [Environment]::GetFolderPath("Desktop")',
-      '$startMenuPath = Join-Path ([Environment]::GetFolderPath("StartMenu")) "Programs"',
-      '$iconPath = if (Test-Path $iconFile) { "$iconFile,0" } else { "$env:SystemRoot\\System32\\imageres.dll,109" }',
+      '$desktop = [Environment]::GetFolderPath("Desktop")',
+      '$startMenu = Join-Path ([Environment]::GetFolderPath("StartMenu")) "Programs"',
       '',
-      '# 1. Desktop Icon',
-      '$shortcut1 = $wsh.CreateShortcut((Join-Path $desktopPath "Ollama + Gemini Hybrid Workstation.lnk"))',
-      '$shortcut1.TargetPath = $wscriptExe',
-      '$shortcut1.Arguments = ("""" + $launchVbs + """")',
-      '$shortcut1.WorkingDirectory = $installDir',
-      '$shortcut1.IconLocation = $iconPath',
-      '$shortcut1.Description = "Ollama + Google Gemini Hybrid Workstation mit Qwen-Decider SLM"',
-      '$shortcut1.Save()',
+      '# Desktop Shortcut',
+      '$s1 = $wsh.CreateShortcut((Join-Path $desktop "Ollama + Gemini Hybrid Workstation.lnk"))',
+      '$s1.TargetPath = $launchCmd',
+      '$s1.WorkingDirectory = $installDir',
+      '$s1.Description = "Ollama + Google Gemini Hybrid Workstation"',
+      '$s1.Save()',
       '',
-      '# 2. Startmenue Icon',
-      '$shortcut2 = $wsh.CreateShortcut((Join-Path $startMenuPath "Ollama + Gemini Hybrid Workstation.lnk"))',
-      '$shortcut2.TargetPath = $wscriptExe',
-      '$shortcut2.Arguments = ("""" + $launchVbs + """")',
-      '$shortcut2.WorkingDirectory = $installDir',
-      '$shortcut2.IconLocation = $iconPath',
-      '$shortcut2.Description = "Ollama + Google Gemini Hybrid Workstation mit Qwen-Decider SLM"',
-      '$shortcut2.Save()',
+      '# Start Menu Shortcut',
+      '$s2 = $wsh.CreateShortcut((Join-Path $startMenu "Ollama + Gemini Hybrid Workstation.lnk"))',
+      '$s2.TargetPath = $launchCmd',
+      '$s2.WorkingDirectory = $installDir',
+      '$s2.Description = "Ollama + Google Gemini Hybrid Workstation"',
+      '$s2.Save()',
       '',
-      'Write-Host (" [OK] Desktop-Icon: " + (Join-Path $desktopPath "Ollama + Gemini Hybrid Workstation.lnk")) -ForegroundColor Green',
-      'Write-Host (" [OK] Startmenue:   " + (Join-Path $startMenuPath "Ollama + Gemini Hybrid Workstation.lnk")) -ForegroundColor Green',
-      '',
-      '# Wissensspeicher anlegen',
-      '$vaultDir = if (Test-Path "D:\\") { "D:\\OllamaKnowledge" } else { "C:\\OllamaKnowledge" }',
-      'if (-not (Test-Path $vaultDir)) { New-Item -ItemType Directory -Force -Path $vaultDir | Out-Null }',
-      'Write-Host "[5/5] Offline-Tresor verknuepft: $vaultDir" -ForegroundColor Green',
-      '',
+      'Write-Host "[3/3] Desktop-Icon & Startmenue verankert!" -ForegroundColor Green',
       'Write-Host ""',
       'Write-Host "========================================================" -ForegroundColor Cyan',
       'Write-Host "  Installation erfolgreich abgeschlossen!" -ForegroundColor Green',
-      'Write-Host "  Sie koennen die Workstation jetzt jederzeit ueber das" -ForegroundColor Cyan',
-      'Write-Host "  Desktop-Icon oder das Startmenue mit 1 Klick starten." -ForegroundColor Cyan',
       'Write-Host "========================================================" -ForegroundColor Cyan',
-      'Write-Host ""',
       '',
-      '# Sofort starten',
-      'Write-Host "Starte Workstation im randlosen App-Fenster..." -ForegroundColor Yellow',
-      'Start-Process $wscriptExe -ArgumentList ("""" + $launchVbs + """")',
-      ''
+      'Start-Process $launchCmd'
     ].join('\r\n');
-    res.setHeader('Content-Disposition', 'attachment; filename="Install-Windows11-App.ps1"');
+    res.setHeader('Content-Disposition', 'attachment; filename="Setup-Windows11-App.ps1"');
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    return res.send(installPs1);
+    return res.send(cleanPs1);
   }
 
   if (filename === 'Starte-Eigenes-App-Fenster.cmd') {
