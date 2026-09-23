@@ -2277,13 +2277,20 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
 
                 {/* Step by step manual setup instructions */}
                 <div className="mt-3 p-3.5 rounded-lg bg-slate-900/80 border border-slate-800 space-y-2">
-                  <span className="font-semibold text-slate-200 text-xs block">
-                    Schritt-für-Schritt Einrichtung im Windows Terminal (PowerShell):
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-slate-200 text-xs block">
+                      Schritt-für-Schritt Einrichtung im Windows Terminal (PowerShell):
+                    </span>
+                    <span className="text-[10px] text-amber-400 font-mono">Modellname: qwen2.5:0.5b</span>
+                  </div>
+
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    Hinweis: Im offiziellen Ollama-Katalog heißt das Basismodell <code className="text-cyan-300 font-mono bg-slate-950 px-1 py-0.5 rounded">qwen2.5:0.5b</code>. Mit dem Alias-Befehl <code className="text-cyan-300 font-mono bg-slate-950 px-1 py-0.5 rounded">ollama cp</code> steht es sofort lokal als <code className="text-cyan-300 font-mono bg-slate-950 px-1 py-0.5 rounded">qwen-decider:0.5b</code> bereit:
+                  </p>
 
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between p-2 rounded bg-slate-950 font-mono text-[11px] text-slate-300">
-                      <span>ollama pull qwen2.5:0.5b</span>
+                      <span>1. ollama pull qwen2.5:0.5b</span>
                       <button
                         onClick={() => handleCopyQwenCmd('ollama pull qwen2.5:0.5b', 'cmd1')}
                         className="text-slate-400 hover:text-white flex items-center gap-1 transition cursor-pointer"
@@ -2294,7 +2301,18 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
                     </div>
 
                     <div className="flex items-center justify-between p-2 rounded bg-slate-950 font-mono text-[11px] text-slate-300">
-                      <span>ollama create qwen-decider:0.5b -f Modelfile-qwen-decider</span>
+                      <span>2. ollama cp qwen2.5:0.5b qwen-decider:0.5b</span>
+                      <button
+                        onClick={() => handleCopyQwenCmd('ollama cp qwen2.5:0.5b qwen-decider:0.5b', 'cmd-alias')}
+                        className="text-slate-400 hover:text-white flex items-center gap-1 transition cursor-pointer"
+                      >
+                        {qwenCopiedCmd === 'cmd-alias' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        <span className="text-[10px]">{qwenCopiedCmd === 'cmd-alias' ? 'Kopiert' : 'Kopieren'}</span>
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between p-2 rounded bg-slate-950 font-mono text-[11px] text-slate-300">
+                      <span>(Optional) ollama create qwen-decider:0.5b -f Modelfile-qwen-decider</span>
                       <button
                         onClick={() => handleCopyQwenCmd('ollama create qwen-decider:0.5b -f Modelfile-qwen-decider', 'cmd2')}
                         className="text-slate-400 hover:text-white flex items-center gap-1 transition cursor-pointer"
@@ -2305,7 +2323,7 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
                     </div>
 
                     <div className="flex items-center justify-between p-2 rounded bg-slate-950 font-mono text-[11px] text-slate-300">
-                      <span>python train_qwen_decider.py</span>
+                      <span>(Optional) python train_qwen_decider.py</span>
                       <button
                         onClick={() => handleCopyQwenCmd('python train_qwen_decider.py', 'cmd3')}
                         className="text-slate-400 hover:text-white flex items-center gap-1 transition cursor-pointer"

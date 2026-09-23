@@ -32,6 +32,8 @@ export const DesktopPackagerModal: React.FC<Props> = ({
 
   if (!isOpen) return null;
 
+  const appOrigin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+
   const copyText = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
@@ -119,6 +121,127 @@ export const DesktopPackagerModal: React.FC<Props> = ({
 
         {/* Content Body */}
         <div className="p-5 space-y-4 overflow-y-auto text-sm">
+          {/* 1. VOLLAUTOMATISCHER WINDOWS 11 1-KLICK INSTALLER MIT DESKTOP-ICON */}
+          <div className="bg-gradient-to-br from-cyan-950/90 via-slate-950/90 to-blue-950/90 border-2 border-cyan-500/80 rounded-xl p-4.5 relative overflow-hidden shadow-2xl shadow-cyan-950/50 space-y-3.5">
+            <div className="absolute top-0 right-0 bg-cyan-500/20 text-cyan-300 text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-bl-lg border-l border-b border-cyan-500/40">
+              Windows 11 • Desktop-Icon &amp; Startmenü
+            </div>
+
+            <div className="flex items-start gap-3.5">
+              <div className="p-2.5 rounded-xl bg-cyan-900/60 border border-cyan-500/60 text-cyan-300 shrink-0 mt-0.5 shadow-lg shadow-cyan-500/20">
+                <Package className="w-7 h-7" />
+              </div>
+              <div className="space-y-1.5 flex-1 pr-12">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h4 className="font-bold text-slate-100 text-sm sm:text-base">
+                    Windows 11 1-Klick Installer (Vollautomatischer Block)
+                  </h4>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-cyan-900/50 text-cyan-300 border border-cyan-700/60">
+                    Mit App-Icon (.ico)
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Installiert die gesamte Hybrid Workstation mit einem einzigen Klick als eigenständigen Anwendungsblock in Windows 11:
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1 text-[11px] text-slate-300">
+                  <div className="flex items-center gap-1.5 text-cyan-200">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>Desktop-Icon mit offiziellem App-Logo (.ico)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-cyan-200">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>Eintrag im Windows 11 Startmenü</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-cyan-200">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>Automatischer Start von Ollama &amp; Qwen-Decider</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-cyan-200">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>Öffnet im randlosen App-Fenster (ohne URL-Leiste)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="pt-2 flex flex-wrap items-center gap-2.5 border-t border-cyan-500/20">
+              <a
+                href="/api/desktop/files/Install-Windows11-App.bat"
+                download="Install-Windows11-App.bat"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-semibold text-xs shadow-lg shadow-cyan-600/30 transition cursor-pointer"
+                title="Herunterladen und per Doppelklick ausfuehren"
+              >
+                <Download className="w-4 h-4" />
+                <span>1. Install-Windows11-App.bat herunterladen</span>
+              </a>
+
+              <a
+                href="/api/desktop/files/Setup-Qwen-Modell.bat"
+                download="Setup-Qwen-Modell.bat"
+                className="flex items-center gap-2 px-3.5 py-2.5 rounded-lg bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white font-semibold text-xs shadow-md transition cursor-pointer"
+                title="Behebt 'file does not exist' in Ollama mit 1 Klick"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>2. Setup-Qwen-Modell.bat herunterladen</span>
+              </a>
+
+              <a
+                href="/api/desktop/files/workstation.ico"
+                download="workstation.ico"
+                className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition cursor-pointer"
+                title="Windows Icon (.ico) separat herunterladen"
+              >
+                <Download className="w-3.5 h-3.5 text-cyan-400" />
+                <span>workstation.ico</span>
+              </a>
+
+              <button
+                onClick={() =>
+                  copyText(
+                    `powershell -NoProfile -Command "$w = New-Object -ComObject WScript.Shell; $d = [Environment]::GetFolderPath('Desktop'); $s = $w.CreateShortcut((Join-Path $d 'Ollama + Gemini Hybrid Workstation.lnk')); $s.TargetPath = 'cmd.exe'; $s.Arguments = '/c start \"\" \"${appOrigin}\"'; $s.Save(); Write-Host '[OK] Desktop-Icon erfolgreich angelegt!' -ForegroundColor Green"`,
+                    'ps-auto-install'
+                  )
+                }
+                className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-cyan-300 text-xs font-mono border border-cyan-500/40 transition cursor-pointer ml-auto"
+                title="Direkter 1-Zeiler fuer PowerShell (benoetigt keinen Download)"
+              >
+                {copiedId === 'ps-auto-install' ? (
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                ) : (
+                  <Copy className="w-3.5 h-3.5" />
+                )}
+                <span>
+                  {copiedId === 'ps-auto-install' ? 'Befehl kopiert!' : 'PowerShell Direkt-Icon (1-Zeiler)'}
+                </span>
+              </button>
+            </div>
+
+            {/* Explanatory banner for the user's specific errors */}
+            <div className="bg-slate-950/90 p-3 rounded-lg border border-cyan-500/30 text-xs space-y-2">
+              <div className="flex items-center gap-2 text-amber-300 font-semibold text-[11px]">
+                <span>💡 Wichtige Loesung fuer die beiden Fehlermeldungen:</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-300">
+                <div className="p-2 rounded bg-slate-900/90 border border-slate-800 space-y-1">
+                  <div className="font-bold text-cyan-300">1. &quot;irm / Verbindung fehlgeschlagen&quot;</div>
+                  <p className="text-slate-400 leading-relaxed">
+                    Externe PowerShell-Downloads ins Internet werden durch Cloud-Sicherheitschecks gebremst. 
+                    <strong className="text-slate-200"> Loesung:</strong> Klicken Sie oben einfach auf den blauen Button <span className="text-cyan-300">Install-Windows11-App.bat</span> und fuehren Sie die Datei mit Doppelklick aus. Das App-Icon ist jetzt direkt im Skript eingebettet (100% autark &amp; lokal).
+                  </p>
+                </div>
+                <div className="p-2 rounded bg-slate-900/90 border border-slate-800 space-y-1">
+                  <div className="font-bold text-violet-300">2. &quot;pull model manifest: file does not exist&quot;</div>
+                  <p className="text-slate-400 leading-relaxed">
+                    Im offiziellen Ollama-Katalog heisst das Modell <strong className="text-violet-200">qwen2.5:0.5b</strong> (mit &quot;2.5&quot;). 
+                    <strong className="text-slate-200"> Loesung:</strong> Klicken Sie oben auf <span className="text-violet-300">Setup-Qwen-Modell.bat</span> oder fuehren Sie aus: 
+                    <code className="text-cyan-300 bg-slate-950 px-1 py-0.5 rounded block mt-1 font-mono">ollama pull qwen2.5:0.5b &amp;&amp; ollama cp qwen2.5:0.5b qwen-decider:0.5b</code>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* BROWSER AUTO-DETECTION BANNER */}
           <div className="bg-slate-950/90 border border-cyan-500/40 rounded-xl p-3.5 flex items-start gap-3 shadow-md">
             <div className="p-2 rounded-lg bg-cyan-950/80 border border-cyan-800/60 text-cyan-400 shrink-0 mt-0.5">
@@ -318,7 +441,7 @@ export const DesktopPackagerModal: React.FC<Props> = ({
               <button
                 onClick={() =>
                   copyText(
-                    `powershell -ExecutionPolicy Bypass -Command "$u='http://localhost:3000';$w=New-Object -ComObject WScript.Shell;$s=$w.CreateShortcut([Environment]::GetFolderPath('Desktop')+'\\Ollama + Gemini Hybrid.lnk');$ff=(Get-Command firefox.exe -ErrorAction SilentlyContinue).Source;if(-not $ff -and (Test-Path 'C:\\Program Files\\Mozilla Firefox\\firefox.exe')){$ff='C:\\Program Files\\Mozilla Firefox\\firefox.exe'};if($ff){$s.TargetPath=$ff;$s.Arguments='-new-window '+$u}else{$s.TargetPath='cmd.exe';$s.Arguments='/c start \"\" '+$u};$s.Save();Write-Host 'Erfolgreich! Desktop-Icon fuer Ihren Browser angelegt.' -ForegroundColor Green"`,
+                    `powershell -ExecutionPolicy Bypass -Command "$u='${appOrigin}';$w=New-Object -ComObject WScript.Shell;$s=$w.CreateShortcut([Environment]::GetFolderPath('Desktop')+'\\Ollama + Gemini Hybrid.lnk');$ff=(Get-Command firefox.exe -ErrorAction SilentlyContinue).Source;if(-not $ff -and (Test-Path 'C:\\Program Files\\Mozilla Firefox\\firefox.exe')){$ff='C:\\Program Files\\Mozilla Firefox\\firefox.exe'};if($ff){$s.TargetPath=$ff;$s.Arguments='-new-window '+$u}else{$s.TargetPath='cmd.exe';$s.Arguments='/c start \"\" '+$u};$s.Save();Write-Host 'Erfolgreich! Desktop-Icon fuer Ihren Browser angelegt.' -ForegroundColor Green"`,
                     'ps-cmd'
                   )
                 }
@@ -330,7 +453,7 @@ export const DesktopPackagerModal: React.FC<Props> = ({
             </div>
 
             <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800/80 font-mono text-[11px] text-cyan-300 overflow-x-auto select-all">
-              powershell -ExecutionPolicy Bypass -Command &quot;irm http://localhost:3000/api/desktop/files/install.ps1 | iex&quot;
+              powershell -ExecutionPolicy Bypass -Command &quot;irm {appOrigin}/api/desktop/files/install.ps1 | iex&quot;
             </div>
             <p className="text-[11px] text-slate-400">
               Führen Sie diese Zeile in der Windows PowerShell aus. Sie ermittelt automatisch, ob <strong>Firefox</strong>, Chrome oder ein anderer Browser Ihr Standard ist, und erstellt die passende Desktop-Verknüpfung.

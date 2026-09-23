@@ -53,6 +53,7 @@ import {
   X,
   Zap,
   Brain,
+  Monitor,
 } from 'lucide-react';
 
 export default function App() {
@@ -709,6 +710,22 @@ export default function App() {
                 <span>Herz & Nieren Test</span>
                 <span className="bg-emerald-500/20 text-emerald-300 font-semibold text-[10px] px-1.5 py-0.5 rounded border border-emerald-500/30">
                   99% Perfekt
+                </span>
+              </button>
+            </div>
+
+            {/* Far Right: Windows 11 Desktop-Icon 1-Click Installer */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsPackagerOpen(true)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-200 transition text-xs font-medium cursor-pointer shadow-sm"
+                title="Vollautomatischen Windows 11 Installer mit Desktop-Icon öffnen"
+              >
+                <Monitor className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="font-semibold text-slate-100">Win 11 Desktop-Icon</span>
+                <span className="bg-cyan-500/20 text-cyan-300 font-semibold text-[10px] px-1.5 py-0.5 rounded border border-cyan-500/30">
+                  1-Klick Installer
                 </span>
               </button>
             </div>
