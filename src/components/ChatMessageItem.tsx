@@ -23,6 +23,9 @@ import {
   RefreshCw,
   CheckCircle2,
   ExternalLink,
+  Layers,
+  Play,
+  Radio,
 } from 'lucide-react';
 import { ChatMessage } from '../types';
 
@@ -367,6 +370,12 @@ export const ChatMessageItem: React.FC<Props> = ({ message, fontSize = 'normal' 
   const [showOllamaDetails, setShowOllamaDetails] = useState(false);
   const [showGeminiDetails, setShowGeminiDetails] = useState(false);
   const [showHallunoxDetails, setShowHallunoxDetails] = useState(false);
+  const [expandedSystemId, setExpandedSystemId] = useState<string | null>(null);
+  const [showAllSwarmResponses, setShowAllSwarmResponses] = useState(false);
+
+  const handleSwitchToSolo = (systemId: string) => {
+    window.dispatchEvent(new CustomEvent('switch-to-solo-system', { detail: { systemId } }));
+  };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -404,13 +413,25 @@ export const ChatMessageItem: React.FC<Props> = ({ message, fontSize = 'normal' 
   const isSideBySide = meta?.mode === 'side_by_side';
   const isCollaborative = meta?.mode === 'collaborative';
   const isConsensus = meta?.mode === 'consensus';
+  const isMatrixSwarm = meta?.mode === 'matrix_swarm' || Boolean(meta?.matrixSwarmResult);
+  const isSoloSystem = meta?.mode === 'solo_system' || Boolean(meta?.soloSystemResult);
 
   return (
     <div className="my-4 w-full bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm text-slate-100 transition-all">
       {/* Top Header of Response */}
       <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-800/80 text-xs">
         <div className="flex items-center gap-2 flex-wrap">
-          {message.engine === 'ollama' ? (
+          {message.engine === 'solo_system' || isSoloSystem ? (
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-950/80 border border-cyan-500/60 text-cyan-200 font-medium shadow-sm">
+              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+              <span>Einzelbetrieb: {message.modelName}</span>
+            </div>
+          ) : message.engine === 'matrix_swarm' || isMatrixSwarm ? (
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-cyan-950 to-indigo-950 border border-cyan-500/60 text-cyan-200 font-medium shadow-sm">
+              <Layers className="w-3.5 h-3.5 text-cyan-400" />
+              <span>20-KI Hybrid-Schwarm ({meta?.matrixSwarmResult?.activeSystemsCount || 20} Systeme)</span>
+            </div>
+          ) : message.engine === 'ollama' ? (
             <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-700/60 text-emerald-300 font-medium">
               <Cpu className="w-3.5 h-3.5 text-emerald-400" />
               <span>Ollama (Lokal): {message.modelName}</span>
@@ -498,15 +519,15 @@ export const ChatMessageItem: React.FC<Props> = ({ message, fontSize = 'normal' 
               <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0 animate-pulse" />
               <span className="font-semibold text-slate-100">
                 {meta.qwenDecider.isKevModel || meta.qwenDecider.model?.toLowerCase().includes('kev')
-                  ? `Kev Decision Head (${meta.qwenDecider.model})`
-                  : `Qwen-Decider (${meta.qwenDecider.model})`}:
+                  ? `Kev Decision Head (${meta.qwenDecider.model || 'kev-0.8b'})`
+                  : `Qwen-Decider (${meta.qwenDecider.model || 'qwen-decider'})`}:
               </span>
               <span className="font-mono text-cyan-300 font-medium">
-                {meta.qwenDecider.engine.toUpperCase()} ({Math.round(meta.qwenDecider.confidence * 100)}% Konfidenz)
+                {(meta.qwenDecider.engine || 'ollama').toUpperCase()} ({Math.round((meta.qwenDecider.confidence ?? 0.95) * 100)}% Konfidenz)
               </span>
               <span className="text-slate-400">•</span>
               <span className="text-[11px] text-emerald-400 font-mono">
-                {meta.qwenDecider.latencyMs}ms
+                {meta.qwenDecider.latencyMs ?? 8}ms
               </span>
               {meta.qwenDecider.blockCausalMaskApplied && (
                 <span className="text-[10px] px-1.5 py-0.2 rounded bg-violet-900/70 border border-violet-500/40 text-violet-300 font-mono">
@@ -516,10 +537,10 @@ export const ChatMessageItem: React.FC<Props> = ({ message, fontSize = 'normal' 
             </div>
             <div className="flex items-center gap-2 text-[11px]">
               <span className="px-2 py-0.5 rounded bg-violet-900/60 border border-violet-500/40 text-violet-200">
-                Datenschutz: {meta.qwenDecider.privacyScore}%
+                Datenschutz: {meta.qwenDecider.privacyScore ?? 50}%
               </span>
               <span className="px-2 py-0.5 rounded bg-cyan-900/60 border border-cyan-500/40 text-cyan-200">
-                Komplexität: {meta.qwenDecider.complexityScore}%
+                Komplexität: {meta.qwenDecider.complexityScore ?? 25}%
               </span>
               {meta.qwenDecider.requiresDriveDKnowledge && (
                 <span className="px-2 py-0.5 rounded bg-amber-900/60 border border-amber-500/40 text-amber-200">
@@ -529,12 +550,12 @@ export const ChatMessageItem: React.FC<Props> = ({ message, fontSize = 'normal' 
             </div>
           </div>
           <div className="text-[11px] text-slate-300 flex items-start justify-between flex-wrap gap-2 pl-5">
-            <span>{meta.qwenDecider.reason}</span>
+            <span>{meta.qwenDecider.reason || 'Kev Single Forward Pass Kausalentscheidung.'}</span>
             {meta.qwenDecider.calibratedProbabilities?.engine && (
               <div className="flex items-center gap-2 text-[10px] font-mono text-slate-400">
-                <span>P(Ollama): {(meta.qwenDecider.calibratedProbabilities.engine.ollama * 100).toFixed(0)}%</span>
+                <span>P(Ollama): {((meta.qwenDecider.calibratedProbabilities.engine.ollama ?? 0.8) * 100).toFixed(0)}%</span>
                 <span>•</span>
-                <span>P(Gemini): {(meta.qwenDecider.calibratedProbabilities.engine.gemini * 100).toFixed(0)}%</span>
+                <span>P(Gemini): {((meta.qwenDecider.calibratedProbabilities.engine.gemini ?? 0.2) * 100).toFixed(0)}%</span>
               </div>
             )}
           </div>
@@ -635,6 +656,32 @@ export const ChatMessageItem: React.FC<Props> = ({ message, fontSize = 'normal' 
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Solo System Execution Banner */}
+      {meta?.soloSystemResult && (
+        <div className="mt-3 px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-950/60 via-slate-900 to-indigo-950/40 border border-cyan-500/50 text-xs text-cyan-200 flex flex-wrap items-center justify-between gap-2 shadow-sm">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="w-5 h-5 rounded-md bg-cyan-500/20 text-cyan-300 font-mono font-bold flex items-center justify-center text-[10px] border border-cyan-500/40">
+              #{meta.soloSystemResult.systemNumber < 10 ? `0${meta.soloSystemResult.systemNumber}` : meta.soloSystemResult.systemNumber}
+            </span>
+            <span className="font-semibold text-slate-100">{meta.soloSystemResult.systemName}</span>
+            <span className="text-slate-400 font-mono text-[10px]">({meta.soloSystemResult.architecture})</span>
+            <span className="text-slate-400">•</span>
+            <span className="text-[11px] text-cyan-300 font-medium">{meta.soloSystemResult.role}</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {meta.soloSystemResult.tokensPerSec && (
+              <span className="px-2 py-0.5 rounded bg-slate-800 text-[10px] font-mono text-slate-300">
+                ⚡ ~{meta.soloSystemResult.tokensPerSec} Tok/s
+              </span>
+            )}
+            <span className="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-[10px] font-semibold border border-cyan-500/40">
+              Einzelbetrieb Aktiv
+            </span>
+          </div>
         </div>
       )}
 
@@ -762,6 +809,134 @@ export const ChatMessageItem: React.FC<Props> = ({ message, fontSize = 'normal' 
             <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
               {normalizeMarkdownContent(message.content)}
             </Markdown>
+          </div>
+        </div>
+      ) : isMatrixSwarm && meta?.matrixSwarmResult ? (
+        // 20-KI Matrix Swarm & Consensus View
+        <div className="mt-4 space-y-4">
+          {/* Swarm Master Header Bar */}
+          <div className="p-3.5 rounded-xl bg-gradient-to-r from-cyan-950/70 via-indigo-950/50 to-slate-950 border border-cyan-700/50 text-xs space-y-2.5 shadow-md">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-cyan-400 animate-pulse" />
+                <span className="font-bold text-slate-100 text-sm">
+                  20-KI-System Swarm Matrix: {meta.matrixSwarmResult.activeSystemsCount} Systeme im Verbund
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold font-mono">
+                  {meta.matrixSwarmResult.consensusScore}% Konsensus
+                </span>
+                <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[10px]">
+                  Latenz: {meta.matrixSwarmResult.totalLatencyMs}ms
+                </span>
+              </div>
+            </div>
+
+            {/* Agreed Points / Highlights */}
+            {meta.matrixSwarmResult.agreedPoints && meta.matrixSwarmResult.agreedPoints.length > 0 && (
+              <div className="space-y-1 pt-1 border-t border-slate-800/80 text-[11px] text-slate-300">
+                {meta.matrixSwarmResult.agreedPoints.map((pt, pIdx) => (
+                  <div key={pIdx} className="flex items-start gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>{pt}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Quick Metrics of Fastest & Deepest */}
+            <div className="flex items-center justify-between flex-wrap gap-2 pt-1 text-[11px] text-slate-400">
+              <span>⚡ Schnellster Reflex: <strong className="text-cyan-300">{meta.matrixSwarmResult.fastestSystem}</strong></span>
+              <span>🧠 Höchste Reasoning-Konfidenz: <strong className="text-indigo-300">{meta.matrixSwarmResult.highestConfidenceSystem}</strong></span>
+            </div>
+          </div>
+
+          {/* Master Synthesis Content */}
+          <div className="leading-relaxed max-w-none pt-1">
+            <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+              {normalizeMarkdownContent(message.content)}
+            </Markdown>
+          </div>
+
+          {/* Expandable Individual Responses from the Active Systems */}
+          <div className="pt-2 border-t border-slate-800/80">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                <Radio className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Individuelle Antworten der einzelnen Systeme ({meta.matrixSwarmResult.systemResponses.length})</span>
+              </span>
+              <button
+                onClick={() => setShowAllSwarmResponses(!showAllSwarmResponses)}
+                className="text-xs text-cyan-300 hover:text-cyan-100 flex items-center gap-1 font-medium transition cursor-pointer"
+              >
+                <span>{showAllSwarmResponses ? 'System-Matrix einklappen' : 'Alle Systeme im Detail ansehen'}</span>
+                {showAllSwarmResponses ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+
+            {showAllSwarmResponses && (
+              <div className="space-y-3 mt-3 animate-in fade-in duration-200">
+                {meta.matrixSwarmResult.systemResponses.map((sysResp) => {
+                  const isExpanded = expandedSystemId === sysResp.systemId;
+                  return (
+                    <div
+                      key={sysResp.systemId}
+                      className="rounded-xl border border-slate-800 bg-slate-950/80 overflow-hidden text-xs transition"
+                    >
+                      <div
+                        onClick={() => setExpandedSystemId(isExpanded ? null : sysResp.systemId)}
+                        className="px-3.5 py-2.5 bg-slate-900/60 hover:bg-slate-900 flex items-center justify-between gap-2 cursor-pointer transition select-none"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="w-5 h-5 rounded bg-slate-800 text-slate-300 font-mono text-[10px] font-bold flex items-center justify-center">
+                            #{sysResp.systemNumber < 10 ? `0${sysResp.systemNumber}` : sysResp.systemNumber}
+                          </span>
+                          <span className="font-bold text-slate-200">{sysResp.systemName}</span>
+                          <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">
+                            ({sysResp.parameters})
+                          </span>
+                          <span className="text-[10px] text-cyan-400 font-mono">
+                            {sysResp.durationMs}ms
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {/* SWITCH TO SOLO OPERATOR BUTTON */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSwitchToSolo(sysResp.systemId);
+                            }}
+                            className="px-2 py-0.5 rounded bg-cyan-950 border border-cyan-700/60 hover:bg-cyan-900 text-cyan-200 hover:text-white transition flex items-center gap-1 text-[11px] font-medium cursor-pointer"
+                            title="Zu diesem System in den Einzelbetrieb wechseln"
+                          >
+                            <Play className="w-2.5 h-2.5 fill-current" />
+                            <span>Einzeln bedienen</span>
+                          </button>
+
+                          {isExpanded ? <ChevronUp className="w-3.5 h-3.5 text-slate-400" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-400" />}
+                        </div>
+                      </div>
+
+                      {isExpanded && (
+                        <div className="p-4 bg-slate-950 border-t border-slate-800/80 space-y-2">
+                          <div className="flex items-center justify-between text-[11px] text-slate-400 pb-2 border-b border-slate-800/60 font-mono">
+                            <span>Architektur: {sysResp.architecture}</span>
+                            <span>Rolle: {sysResp.role}</span>
+                          </div>
+                          <div className="leading-relaxed max-w-none pt-1">
+                            <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                              {normalizeMarkdownContent(sysResp.text)}
+                            </Markdown>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       ) : (

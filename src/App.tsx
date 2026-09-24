@@ -14,13 +14,21 @@ import { DesktopPackagerModal } from './components/DesktopPackagerModal';
 import { DriveDKnowledgeModal } from './components/DriveDKnowledgeModal';
 import { SystemDiagnosticModal } from './components/SystemDiagnosticModal';
 import { AndroidApkModal } from './components/AndroidApkModal';
+import { MultiAiMatrixModal } from './components/MultiAiMatrixModal';
+import { SoloSystemControlBar } from './components/SoloSystemControlBar';
 import { usePWAInstall } from './hooks/usePWAInstall';
 import {
   ChatMessage,
   HybridMode,
   OllamaStatus,
   DriveDSyncStatus,
+  AISystemDefinition,
 } from './types';
+import {
+  getAllAISystems,
+  executeSingleAISystem,
+  executeMatrixSwarm,
+} from './services/multiAiMatrixService';
 import {
   DEFAULT_OLLAMA_HOST,
   DEMO_OLLAMA_MODELS,
@@ -125,6 +133,31 @@ export default function App() {
   // Hybrid Mode State
   const [hybridMode, setHybridMode] = useState<HybridMode>('smart_router');
 
+  // 20-KI-System Matrix & Solo State
+  const [allAISystems, setAllAISystems] = useState<AISystemDefinition[]>(getAllAISystems);
+  const [isMatrixModalOpen, setIsMatrixModalOpen] = useState(false);
+  const [activeSoloSystemId, setActiveSoloSystemId] = useState<string>(() => {
+    return localStorage.getItem('hybrid_active_solo_system') || 'sys-01';
+  });
+
+  const currentSoloSystem = allAISystems.find((s) => s.id === activeSoloSystemId) || allAISystems[0];
+  const activeSwarmCount = allAISystems.filter((s) => s.enabledInHybrid).length;
+
+  const handleSelectSoloSystem = (systemId: string) => {
+    setActiveSoloSystemId(systemId);
+    localStorage.setItem('hybrid_active_solo_system', systemId);
+  };
+
+  const handleSwitchToSoloMode = (systemId: string) => {
+    setActiveSoloSystemId(systemId);
+    setHybridMode('solo_system');
+    localStorage.setItem('hybrid_active_solo_system', systemId);
+  };
+
+  const handleSwitchToSwarmMode = () => {
+    setHybridMode('matrix_swarm');
+  };
+
   // Chat State
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     const saved = localStorage.getItem('hybrid_chat_history');
@@ -180,9 +213,21 @@ export default function App() {
     refreshDriveDStatus();
 
     const handleOpenApk = () => setIsAndroidApkOpen(true);
+    const handleOpenMatrix = () => setIsMatrixModalOpen(true);
+    const handleSwitchToSolo = (e: any) => {
+      const sysId = e.detail?.systemId;
+      if (sysId) {
+        handleSwitchToSoloMode(sysId);
+      }
+    };
+
     window.addEventListener('open-android-apk-modal', handleOpenApk);
+    window.addEventListener('open-matrix-hub-modal', handleOpenMatrix);
+    window.addEventListener('switch-to-solo-system', handleSwitchToSolo);
     return () => {
       window.removeEventListener('open-android-apk-modal', handleOpenApk);
+      window.removeEventListener('open-matrix-hub-modal', handleOpenMatrix);
+      window.removeEventListener('switch-to-solo-system', handleSwitchToSolo);
     };
   }, []);
 
@@ -320,7 +365,66 @@ export default function App() {
       );
       setLastQwenEvaluation(qwenEval);
 
-      if (hybridMode === 'smart_router') {
+      if (hybridMode === 'solo_system') {
+        // Individual Operation of ANY of the 20 AI systems
+        const singleResult = await executeSingleAISystem(activeSoloSystemId, text, {
+          customHost,
+          isDemoMode,
+          driveDKnowledge: qwenEval.requiresDriveDKnowledge,
+        });
+
+        const hallunoxVerification = await checkHallunoxGuardrail(text, singleResult.text, singleResult.systemName);
+
+        const assistantMsg: ChatMessage = {
+          id: `assistant-${Date.now()}`,
+          role: 'assistant',
+          content: singleResult.text,
+          engine: 'solo_system',
+          modelName: singleResult.systemName,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          durationMs: singleResult.durationMs,
+          metadata: {
+            mode: 'solo_system',
+            routedReason: `Einzelbetrieb: ${singleResult.role}`,
+            savedToDriveD: true,
+            targetPath: 'D:\\OllamaKnowledge\\',
+            hallunoxVerification,
+            qwenDecider: qwenEval,
+            loihi2Routing,
+            soloSystemResult: singleResult,
+          },
+        };
+        setMessages((prev) => [...prev, assistantMsg]);
+      } else if (hybridMode === 'matrix_swarm') {
+        // 20-KI-System Hybrid Swarm Matrix Execution
+        const swarmResult = await executeMatrixSwarm(text, undefined, {
+          customHost,
+          isDemoMode,
+        });
+
+        const hallunoxVerification = await checkHallunoxGuardrail(text, swarmResult.masterSynthesis, '20-KI Hybrid-Matrix');
+
+        const assistantMsg: ChatMessage = {
+          id: `assistant-${Date.now()}`,
+          role: 'assistant',
+          content: swarmResult.masterSynthesis,
+          engine: 'matrix_swarm',
+          modelName: `20-KI Hybrid-Schwarm (${swarmResult.activeSystemsCount} Systeme)`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          durationMs: swarmResult.totalLatencyMs,
+          metadata: {
+            mode: 'matrix_swarm',
+            routedReason: `20-KI Matrix-Konsensus (${swarmResult.consensusScore}% Übereinstimmung)`,
+            savedToDriveD: true,
+            targetPath: 'D:\\OllamaKnowledge\\',
+            hallunoxVerification,
+            qwenDecider: qwenEval,
+            loihi2Routing,
+            matrixSwarmResult: swarmResult,
+          },
+        };
+        setMessages((prev) => [...prev, assistantMsg]);
+      } else if (hybridMode === 'smart_router') {
         // Mode 1: Smart Router (Governed by Qwen-Decider & Loihi 2 SNN)
         const decision = convertQwenToRoutingDecision(qwenEval);
 
@@ -703,6 +807,8 @@ export default function App() {
             setInitialDiagnosticTab('tests');
             setIsDiagnosticOpen(true);
           }}
+          onOpenMatrixModal={() => setIsMatrixModalOpen(true)}
+          activeSystemsCount={activeSwarmCount}
           onOpenPackager={() => setIsPackagerOpen(true)}
           onOpenAndroidApk={() => setIsAndroidApkOpen(true)}
           isChatFocused={isChatFocused}
@@ -722,6 +828,12 @@ export default function App() {
           </div>
           <div className="flex items-center gap-2">
             <button
+              onClick={() => setIsMatrixModalOpen(true)}
+              className="px-2 py-0.5 rounded bg-cyan-950 border border-cyan-700/60 text-cyan-200 hover:text-white text-[11px] font-medium transition cursor-pointer"
+            >
+              20 KI-Matrix ({activeSwarmCount}/20)
+            </button>
+            <button
               onClick={toggleChatFontSize}
               className="px-2.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-medium transition cursor-pointer"
               title="Schriftgröße umschalten"
@@ -738,6 +850,18 @@ export default function App() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* 2b. Solo System Operator Bar when operating any single AI system individually */}
+      {hybridMode === 'solo_system' && (
+        <SoloSystemControlBar
+          activeSystem={currentSoloSystem}
+          allSystems={allAISystems}
+          onSelectSystem={handleSelectSoloSystem}
+          onSwitchToSwarm={handleSwitchToSwarmMode}
+          onOpenMatrixModal={() => setIsMatrixModalOpen(true)}
+          customHost={customHost}
+        />
       )}
 
       {/* 3. Main Chat Stream & Workspace (Gross & Übersichtlich für lange Texte) */}
@@ -949,6 +1073,21 @@ export default function App() {
       <AndroidApkModal
         isOpen={isAndroidApkOpen}
         onClose={() => setIsAndroidApkOpen(false)}
+      />
+
+      {/* 9. 20-KI-Systeme Matrix & Hybrid-Hub Modal */}
+      <MultiAiMatrixModal
+        isOpen={isMatrixModalOpen}
+        onClose={() => {
+          setIsMatrixModalOpen(false);
+          setAllAISystems(getAllAISystems());
+        }}
+        activeSoloSystemId={activeSoloSystemId}
+        onSelectSoloSystem={handleSelectSoloSystem}
+        onSwitchToSoloMode={handleSwitchToSoloMode}
+        onSwitchToSwarmMode={handleSwitchToSwarmMode}
+        isSoloMode={hybridMode === 'solo_system'}
+        customHost={customHost}
       />
     </div>
   );

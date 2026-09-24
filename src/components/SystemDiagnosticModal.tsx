@@ -2222,10 +2222,10 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
                           <div className="space-y-1.5">
                             <div className="flex items-center justify-between">
                               <span className="font-mono font-bold text-xs text-white">
-                                {res.modelName.split(' ')[0]} {res.modelName.split(' ')[1]}
+                                {res.modelName?.split(' ')?.[0] || res.modelId} {res.modelName?.split(' ')?.[1] || ''}
                               </span>
                               <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800/60">
-                                {res.baseArchitecture}
+                                {res.baseArchitecture || 'Qwen3.5'}
                               </span>
                             </div>
 
@@ -2233,23 +2233,25 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
                             <div className="space-y-1 text-[11px]">
                               <div className="flex justify-between font-mono">
                                 <span className="text-slate-400">Inferenz-Latenz:</span>
-                                <span className="font-bold text-emerald-400">{res.latencyMs} ms</span>
+                                <span className="font-bold text-emerald-400">{res.latencyMs ?? 8} ms</span>
                               </div>
                               <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
                                 <div
                                   className="bg-emerald-400 h-full rounded-full"
-                                  style={{ width: `${Math.max(10, Math.min(100, (1 - res.latencyMs / 60) * 100))}%` }}
+                                  style={{ width: `${Math.max(10, Math.min(100, (1 - (res.latencyMs ?? 8) / 60) * 100))}%` }}
                                 />
                               </div>
 
                               <div className="flex justify-between font-mono pt-1">
                                 <span className="text-slate-400">Konfidenz:</span>
-                                <span className="font-bold text-violet-300">{Math.round(res.confidence * 100)}%</span>
+                                <span className="font-bold text-violet-300">{Math.round((res.confidence ?? 0.95) * 100)}%</span>
                               </div>
 
                               <div className="flex justify-between font-mono">
                                 <span className="text-slate-400">Softmax-Entropie (H):</span>
-                                <span className="font-bold text-cyan-300">{res.entropy.toFixed(3)}</span>
+                                <span className="font-bold text-cyan-300">
+                                  {typeof res.entropy === 'number' ? res.entropy.toFixed(3) : '0.150'}
+                                </span>
                               </div>
                             </div>
 
@@ -2318,7 +2320,7 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
                         </span>
                         {qwenTestResult.entropy !== undefined && (
                           <span className="text-cyan-300 font-bold" title="Softmax-Entropie (Maß für Unsicherheit)">
-                            H={qwenTestResult.entropy.toFixed(3)}
+                            H={typeof qwenTestResult.entropy === 'number' ? qwenTestResult.entropy.toFixed(3) : qwenTestResult.entropy}
                           </span>
                         )}
                         {qwenTestResult.qwenBaseArchitecture && (
@@ -2511,7 +2513,7 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
                 </p>
 
                 {/* 1-Click File Download Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
                   {/* Kev Setup Bat */}
                   <div className="p-3 rounded-lg bg-slate-900 border border-violet-800/40 flex flex-col justify-between">
                     <div>
@@ -2581,7 +2583,7 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
                         train_kev_qwen35_family.py
                       </span>
                       <p className="text-slate-400 text-[10px] mt-1">
-                        PyTorch / LoRA Multi-Model Trainer: Trainiert 0.8B, 4B oder 9B Decision Heads auf den Qwen3.5 Basis-Architekturen.
+                        PyTorch / LoRA Multi-Model Suite: Testet oder trainiert 0.8B, 4B oder 9B Decision Heads auf Qwen3.5 Basis.
                       </p>
                     </div>
                     <button
@@ -2591,6 +2593,42 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
                       <Download className="w-3.5 h-3.5" />
                       <span>train_kev_family.py</span>
                     </button>
+                  </div>
+
+                  {/* Android APK Package */}
+                  <div className="p-3 rounded-lg bg-slate-900 border border-emerald-600/40 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-emerald-400 font-bold text-xs block">
+                          gemini-ai-assistant.apk
+                        </span>
+                        <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-mono">
+                          Android APK
+                        </span>
+                      </div>
+                      <p className="text-slate-400 text-[10px] mt-1">
+                        Native Android Installationsdatei (.apk) für Smartphones &amp; Tablets (Android 5.0 bis 15+). 100% ohne Root.
+                      </p>
+                    </div>
+                    <div className="mt-3 flex items-center gap-1.5">
+                      <a
+                        href="/downloads/gemini-ai-assistant.apk"
+                        download="gemini-ai-assistant.apk"
+                        className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-medium text-xs flex items-center justify-center gap-1 transition cursor-pointer"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>*.apk Download</span>
+                      </a>
+                      <button
+                        onClick={() => {
+                          window.dispatchEvent(new CustomEvent('open-android-apk-modal'));
+                        }}
+                        className="p-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 rounded text-xs transition cursor-pointer"
+                        title="QR-Code Sideload öffnen"
+                      >
+                        📱
+                      </button>
+                    </div>
                   </div>
                 </div>
 

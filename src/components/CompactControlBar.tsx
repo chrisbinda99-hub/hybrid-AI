@@ -20,6 +20,8 @@ import {
   CheckCircle2,
   AlertCircle,
   Smartphone,
+  Layers,
+  Radio,
 } from 'lucide-react';
 import { HybridMode, OllamaStatus } from '../types';
 import { GEMINI_MODELS } from '../services/geminiService';
@@ -47,6 +49,8 @@ interface Props {
   onToggleThinking: () => void;
 
   // Quick Action Modals
+  onOpenMatrixModal?: () => void;
+  activeSystemsCount?: number;
   onOpenDriveD: () => void;
   driveDCount: number;
   onOpenQwenDecider: () => void;
@@ -79,6 +83,8 @@ export const CompactControlBar: React.FC<Props> = ({
   onSelectGeminiModel,
   enableThinking,
   onToggleThinking,
+  onOpenMatrixModal,
+  activeSystemsCount = 20,
   onOpenDriveD,
   driveDCount,
   onOpenQwenDecider,
@@ -95,6 +101,8 @@ export const CompactControlBar: React.FC<Props> = ({
   const [isExpanded, setIsExpanded] = useState(false);
 
   const modeOptions: { id: HybridMode; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+    { id: 'matrix_swarm', label: '20-KI Schwarm', icon: Layers },
+    { id: 'solo_system', label: 'Solo-Betrieb', icon: Radio },
     { id: 'smart_router', label: 'Smart Router', icon: BrainCircuit },
     { id: 'side_by_side', label: 'Dual Direkt', icon: SplitSquareVertical },
     { id: 'collaborative', label: 'Verbund', icon: Workflow },
@@ -208,6 +216,22 @@ export const CompactControlBar: React.FC<Props> = ({
 
         {/* Right: Quick Action Modals + Chat Size & Focus */}
         <div className="flex items-center gap-1.5 shrink-0">
+          {/* 20 KI Matrix Hub Modal Button */}
+          {onOpenMatrixModal && (
+            <button
+              type="button"
+              onClick={onOpenMatrixModal}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-gradient-to-r from-cyan-950 to-indigo-950 hover:from-cyan-900 hover:to-indigo-900 border border-cyan-500/60 text-cyan-200 hover:text-white transition text-[11px] font-semibold shadow-sm cursor-pointer"
+              title="20 KI-Systeme Matrix & Hybrid-Hub öffnen (Hybrid-Schwarm oder Einzelbetrieb)"
+            >
+              <Layers className="w-3.5 h-3.5 text-cyan-400" />
+              <span>20 KI-Matrix</span>
+              <span className="bg-cyan-500/20 text-cyan-300 font-mono text-[10px] px-1 rounded border border-cyan-500/40">
+                {activeSystemsCount}/20
+              </span>
+            </button>
+          )}
+
           {/* Drive D Vault */}
           <button
             type="button"

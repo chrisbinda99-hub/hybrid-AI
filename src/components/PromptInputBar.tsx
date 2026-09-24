@@ -111,7 +111,11 @@ export const PromptInputBar: React.FC<Props> = ({
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={
-              activeMode === 'smart_router'
+              activeMode === 'matrix_swarm'
+                ? 'Prompt für 20-KI-System Swarm Matrix eingeben (alle aktiven Systeme antworten simultan)...'
+                : activeMode === 'solo_system'
+                ? 'Nachricht direkt an das ausgewählte KI-System im isolierten Einzelbetrieb senden...'
+                : activeMode === 'smart_router'
                 ? 'Nachricht eingeben (Smart Router wählt automatisch lokal oder Cloud)...'
                 : activeMode === 'side_by_side'
                 ? 'Prompt für simultanen Ollama vs Gemini Vergleich eingeben...'

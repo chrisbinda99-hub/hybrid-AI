@@ -1,10 +1,85 @@
-export type AIEngine = 'ollama' | 'gemini' | 'hybrid';
+export type AIEngine = 'ollama' | 'gemini' | 'hybrid' | 'solo_system' | 'matrix_swarm';
 
 export type HybridMode =
   | 'smart_router'       // Automatically decides best engine (privacy/local vs reasoning/cloud)
   | 'side_by_side'       // Parallel side-by-side comparison of Ollama & Gemini
   | 'collaborative'      // 2-Stage pipeline: Local Ollama draft -> Gemini Pro High Thinking Polish
-  | 'consensus';         // Both models generate, hybrid engine creates unified synthesis
+  | 'consensus'          // Both models generate, hybrid engine creates unified synthesis
+  | 'matrix_swarm'       // 20 KI-Systeme Hybrid-Schwarm: Parallele Matrix-Ausführung & Konsens
+  | 'solo_system';       // Einzelbetrieb: Genau 1 KI-System aus den 20 einzeln betreiben & bedienen
+
+export type AISystemCategory =
+  | 'local_ollama'
+  | 'neuromorphic_slm'
+  | 'google_gemini'
+  | 'cloud_reasoning'
+  | 'specialist_agent';
+
+export interface AISystemDefinition {
+  id: string;                   // 'sys-01' ... 'sys-20'
+  systemNumber: number;         // 1 ... 20
+  name: string;                 // e.g. "Ollama Llama 3.2 3B"
+  shortName: string;            // e.g. "Llama 3.2"
+  category: AISystemCategory;
+  categoryLabel: string;        // e.g. "Lokale Ollama & Edge"
+  architecture: string;         // e.g. "Meta Llama-3.2-3B-Instruct (GGUF 4_K_M)"
+  parameters: string;           // e.g. "3.2B", "8B", "128 Cores SNN", "Flash 1M"
+  role: string;                 // e.g. "Lokaler Edge-Generalist & DSGVO Gatekeeper"
+  strengths: string[];          // e.g. ["Sub-50ms", "100% Offline", "Datenschutz"]
+  status: 'online' | 'ready' | 'simulated' | 'standby';
+  latencyMs: number;
+  vramMb: number;
+  enabledInHybrid: boolean;     // Ob dieses System im 20-KI Hybrid-Schwarm aktiv ist
+  isSoloCapable: boolean;       // Einzeln lauffähig und bedienbar (alle 20 = true)
+  endpointType: 'ollama' | 'gemini' | 'loihi2' | 'qwen_slm' | 'hallunox' | 'cloud_gateway';
+  modelTarget: string;          // Target model identifier
+  temperature: number;
+  systemInstruction: string;
+  badge: string;
+  colorTheme: {
+    bg: string;
+    border: string;
+    text: string;
+    badgeBg: string;
+  };
+}
+
+export interface SingleSystemExecutionResult {
+  systemId: string;
+  systemNumber: number;
+  systemName: string;
+  category: AISystemCategory;
+  text: string;
+  durationMs: number;
+  tokensPerSec?: number;
+  status: 'success' | 'warning' | 'error';
+  modelTarget: string;
+  architecture: string;
+  parameters: string;
+  role: string;
+  timestamp: string;
+  error?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface MatrixSwarmResult {
+  masterSynthesis: string;
+  consensusScore: number;       // 0 - 100% (z.B. 96.8%)
+  activeSystemsCount: number;
+  totalLatencyMs: number;
+  fastestSystem: string;
+  highestConfidenceSystem: string;
+  agreedPoints: string[];
+  uniqueInsights: { systemName: string; insight: string }[];
+  systemResponses: SingleSystemExecutionResult[];
+}
+
+export type SwarmPresetId =
+  | 'full_20_matrix'
+  | 'top_5_fast'
+  | 'local_offline_dsgvo'
+  | 'deep_reasoning_council'
+  | 'code_systems_squad';
 
 export interface OllamaModelInfo {
   name: string;
@@ -70,6 +145,8 @@ export interface ChatMessage {
     hallunoxVerification?: HallunoxVerificationResult;
     qwenDecider?: QwenDeciderEvaluation;
     loihi2Routing?: Loihi2RoutingResult;
+    matrixSwarmResult?: MatrixSwarmResult;
+    soloSystemResult?: SingleSystemExecutionResult;
   };
 }
 

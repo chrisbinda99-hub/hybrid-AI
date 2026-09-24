@@ -6,6 +6,8 @@ import {
   Scale,
   Sparkles,
   Lightbulb,
+  Layers,
+  Radio,
 } from 'lucide-react';
 import { HybridMode } from '../types';
 import { GEMINI_MODELS } from '../services/geminiService';
@@ -34,21 +36,33 @@ export const HybridModeSelector: React.FC<Props> = ({
     icon: React.ComponentType<{ className?: string }>;
   }[] = [
     {
+      id: 'matrix_swarm',
+      title: '20-KI Schwarm',
+      subtitle: 'Simultane Multi-Agenten Matrix & Konsens',
+      icon: Layers,
+    },
+    {
+      id: 'solo_system',
+      title: 'Einzelbetrieb (1 KI)',
+      subtitle: 'Genau 1 System isoliert betreiben & bedienen',
+      icon: Radio,
+    },
+    {
       id: 'smart_router',
       title: 'Smart Router',
-      subtitle: 'Auto-Routing (Datenschutz lokal vs Cloud Reasoning)',
+      subtitle: 'Auto-Routing (Datenschutz lokal vs Cloud)',
       icon: BrainCircuit,
     },
     {
       id: 'side_by_side',
-      title: 'Side-by-Side Dual',
+      title: 'Dual Direkt',
       subtitle: 'Ollama & Gemini parallel im Direktvergleich',
       icon: SplitSquareVertical,
     },
     {
       id: 'collaborative',
       title: 'Verbund Pipeline',
-      subtitle: 'Ollama Entwurf ➔ Gemini High Thinking Veredelung',
+      subtitle: 'Ollama Entwurf ➔ Gemini High Thinking Polish',
       icon: Workflow,
     },
     {
@@ -61,8 +75,8 @@ export const HybridModeSelector: React.FC<Props> = ({
 
   return (
     <div className="space-y-2.5">
-      {/* 4-Way Mode Selector */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+      {/* 6-Way Mode Selector */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
         {modes.map((m) => {
           const Icon = m.icon;
           const isActive = mode === m.id;
