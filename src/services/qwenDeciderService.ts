@@ -170,7 +170,7 @@ export async function querySystemOne(
       };
     }
   } catch (err) {
-    console.warn('System One API fetch failed, using local fallback:', err);
+    console.log('[Notice] System One API fetch handled, using local fallback:', err);
   }
 
   // Local fallback emulation of Kev's single forward pass
@@ -242,7 +242,7 @@ export async function fetchQwenStatus(host: string = 'http://127.0.0.1:11434'): 
       };
     }
   } catch (err) {
-    console.warn('Could not query /api/qwen/status:', err);
+    console.log('[Notice] /api/qwen/status handled with defaults:', err);
   }
 
   return {

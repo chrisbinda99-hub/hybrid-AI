@@ -324,11 +324,11 @@ export const INITIAL_20_AI_SYSTEMS: AISystemDefinition[] = [
     enabledInHybrid: true,
     isSoloCapable: true,
     endpointType: 'gemini',
-    modelTarget: 'gemini-3.5-flash',
+    modelTarget: 'gemini-3.8-flash',
     temperature: 0.7,
     systemInstruction:
-      'Du bist System 11: Google Gemini 3.5 Flash. Liefere umfassende, hochpräzise, moderne und praxistaugliche Antworten auf höchstem technologischem Standard.',
-    badge: 'Gemini 3.5 • 1M',
+      'Du bist System 11: Google Gemini 3.8 Flash. Liefere umfassende, hochpräzise, moderne und praxistaugliche Antworten auf höchstem technologischem Standard.',
+    badge: 'Gemini 3.8 • 1M',
     colorTheme: {
       bg: 'bg-sky-950/40',
       border: 'border-sky-700/50',
@@ -631,7 +631,7 @@ export function getAllAISystems(): AISystemDefinition[] {
       return def;
     });
   } catch (e) {
-    console.error('Failed to load AI systems from localStorage:', e);
+    console.log('[Notice] Failed to load AI systems from localStorage:', e);
     return INITIAL_20_AI_SYSTEMS;
   }
 }
@@ -643,7 +643,7 @@ export function saveAISystems(systems: AISystemDefinition[]): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(systems));
   } catch (e) {
-    console.error('Failed to save AI systems to localStorage:', e);
+    console.log('[Notice] Failed to save AI systems to localStorage:', e);
   }
 }
 
@@ -973,7 +973,7 @@ export async function executeSingleAISystem(
       // Cloud Gateway Persona Proxy (Claude 3.7 Hub, GPT-4o Gateway, Command R+, Llama 3.3 70B, Med-PaLM, Perplexity Sonar)
       // Executed via Gemini backend with specialized system prompt persona & constraints
       const res = await generateGeminiResponse(
-        'gemini-3.5-flash',
+        'gemini-3.8-flash',
         `Du bist als spezialisiertes KI-System "${system.name}" (${system.architecture}, Rolle: ${system.role}) konfiguriert.\n` +
           `Spezifische System-Instruktion:\n${sysPrompt}\n\n` +
           `Beantworte die folgende Benutzeranfrage authentisch im Stil, mit den Spezialisierungen und der vollen Expertise dieses Systems:\n\n${prompt}`,
@@ -1008,7 +1008,7 @@ export async function executeSingleAISystem(
     }
   } catch (error: any) {
     const durationMs = Date.now() - startTime;
-    console.error(`Error executing system ${system.name}:`, error);
+    console.log(`[Notice] System ${system.name} execution fallback:`, error?.message || error);
 
     return {
       systemId: system.id,

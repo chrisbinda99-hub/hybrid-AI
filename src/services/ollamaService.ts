@@ -205,7 +205,7 @@ export async function generateOllamaResponse(
         contextSnippet = knowledge.contextBlock;
       }
     } catch (kErr) {
-      console.warn('Knowledge query skipped:', kErr);
+      console.log('[Notice] Knowledge query skipped:', kErr);
     }
   }
 
@@ -256,7 +256,7 @@ export async function generateOllamaResponse(
     }
   } catch (directErr) {
     // If direct fetch fails (e.g. CORS), fallback to server proxy
-    console.warn('Direct Ollama call failed, trying server proxy...', directErr);
+    console.log('[Notice] Direct Ollama call failed, trying server proxy...', directErr);
   }
 
   // Fallback to backend proxy

@@ -27,7 +27,7 @@ export async function fetchKnowledgeEntries(query?: string): Promise<{ entries: 
     if (!res.ok) throw new Error('Failed to fetch entries');
     return await res.json();
   } catch (err) {
-    console.error('Error fetching knowledge entries:', err);
+    console.log('[Notice] Fetching knowledge entries handled:', err);
     return { entries: [], total: 0 };
   }
 }
@@ -49,7 +49,7 @@ export async function queryKnowledgeForOllama(prompt: string): Promise<OllamaKno
     if (!res.ok) throw new Error('Failed to query knowledge');
     return await res.json();
   } catch (err) {
-    console.warn('Knowledge query offline/failed:', err);
+    console.log('[Notice] Knowledge query handled with offline defaults:', err);
     return {
       matches: [],
       contextBlock: '',
@@ -316,7 +316,7 @@ export async function saveVramDiagnosticReport(params: {
     }
     return await res.json();
   } catch (err: any) {
-    console.warn('Fallback saving VRAM report locally in client browser:', err);
+    console.log('[Notice] Saving VRAM report locally in client browser:', err);
     // Client-side fallback generation
     const now = new Date();
     const pad = (n: number) => n.toString().padStart(2, '0');

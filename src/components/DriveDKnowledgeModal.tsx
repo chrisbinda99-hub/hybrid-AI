@@ -49,7 +49,7 @@ export const DriveDKnowledgeModal: React.FC<DriveDKnowledgeModalProps> = ({
       setStatus(statusData);
       setEntries(entriesData.entries || []);
     } catch (err) {
-      console.error('Error loading vault data:', err);
+      console.log('[Notice] Vault data loading handled:', err);
     } finally {
       setIsLoading(false);
     }

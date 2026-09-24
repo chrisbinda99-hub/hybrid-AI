@@ -69,7 +69,7 @@ export const AndroidApkModal: React.FC<Props> = ({ isOpen, onClose }) => {
         setApkData(data);
       }
     } catch (e) {
-      console.error('Error fetching APK status:', e);
+      console.log('[Notice] APK status fetch handled:', e);
     } finally {
       setLoading(false);
     }

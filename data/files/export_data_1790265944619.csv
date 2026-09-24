@@ -1,0 +1,6 @@
+ID,Bezeichnung,Kategorie,Status,Latenz_ms,VRAM_MB
+SYS-01,Ollama Llama 3.2 3B,Local Edge,Aktiv,38,3400
+SYS-02,Qwen 2.5 0.5B Decider,Gatekeeper,Aktiv,12,650
+SYS-03,Google Gemini 3.8 Flash,Cloud Reasoning,Aktiv,240,0
+SYS-04,Intel Loihi 2 SNN,Neuromorphic,Aktiv,0.48,0
+SYS-05,Hallunox Guardrail,Safety,Aktiv,18,450

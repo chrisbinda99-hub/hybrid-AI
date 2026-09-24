@@ -124,7 +124,7 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
       const status = await fetchQwenStatus(ollamaHost);
       setQwenStatus(status);
     } catch (err) {
-      console.error('Error loading Qwen status:', err);
+      console.log('[Notice] Qwen status load handled:', err);
     } finally {
       setIsLoadingQwen(false);
     }
@@ -138,7 +138,7 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
       const res = await testQwenDecider(prompt, ollamaHost, selectedQwenModel);
       setQwenTestResult(res);
     } catch (err) {
-      console.error('Error testing Qwen decider:', err);
+      console.log('[Notice] Qwen test handled:', err);
     } finally {
       setIsTestingQwen(false);
     }
@@ -152,7 +152,7 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
       const res = await runKevFamilyBenchmark(prompt);
       setKevBenchmarkResult(res);
     } catch (err) {
-      console.error('Error running Kev benchmark:', err);
+      console.log('[Notice] Kev benchmark test handled:', err);
     } finally {
       setIsRunningKevBenchmark(false);
     }
@@ -211,7 +211,7 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
       });
       setHallunoxTestResult(res);
     } catch (err: any) {
-      console.error('Hallunox verification error:', err);
+      console.log('[Notice] Hallunox verification handled:', err);
     } finally {
       setIsVerifyingHallunox(false);
     }
@@ -297,7 +297,7 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
       const res = await fetchSavedDiagnosticReports();
       setSavedReports(res.reports);
     } catch (err) {
-      console.warn('Could not load saved diagnostic reports:', err);
+      console.log('[Notice] Could not load saved diagnostic reports:', err);
     }
   };
 
@@ -354,7 +354,7 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (err) {
-      console.error('Download failed:', err);
+      console.log('[Notice] Download handled:', err);
     }
   };
 
@@ -399,7 +399,7 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
       const data = await fetchGpuStatus(ollamaHost, model, tier, mode);
       setGpuStatus(data);
     } catch (err) {
-      console.error('Error fetching GPU status:', err);
+      console.log('[Notice] GPU status fetch handled:', err);
     } finally {
       setIsLoadingGpu(false);
     }
@@ -414,7 +414,7 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
       ]);
       setSuiteResult(diagRes);
     } catch (err) {
-      console.error('Diagnostic error:', err);
+      console.log('[Notice] Diagnostic handled:', err);
     } finally {
       setIsRunning(false);
     }

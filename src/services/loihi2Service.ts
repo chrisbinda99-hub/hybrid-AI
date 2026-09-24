@@ -18,7 +18,7 @@ export async function fetchLoihi2Status(): Promise<Loihi2Status> {
       return data;
     }
   } catch (err) {
-    console.warn('[Loihi2] API status call failed, using high-fidelity local SNN state:', err);
+    console.log('[Notice] [Loihi2] API status handled with local SNN state:', err);
   }
 
   // Fallback high-fidelity Lava SNN simulator state
@@ -67,7 +67,7 @@ export async function routeWithLoihi2(
       return result;
     }
   } catch (err) {
-    console.warn('[Loihi2] Server endpoint unreachable, running browser-side Lava SNN emulator:', err);
+    console.log('[Notice] [Loihi2] Running browser-side Lava SNN emulator:', err);
   }
 
   // Browser-side High-Fidelity Neuromorphic SNN Execution

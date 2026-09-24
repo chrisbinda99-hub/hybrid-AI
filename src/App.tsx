@@ -5,7 +5,12 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { WindowsTitleBar } from './components/WindowsTitleBar';
+import { MainNavigation, WorkspaceTab } from './components/MainNavigation';
 import { CompactControlBar } from './components/CompactControlBar';
+import { ModelHubView } from './components/ModelHubView';
+import { KnowledgeVaultView } from './components/KnowledgeVaultView';
+import { AiMatrixView } from './components/AiMatrixView';
+import { SystemLabView } from './components/SystemLabView';
 import { DetectionPanel } from './components/DetectionPanel';
 import { HybridModeSelector } from './components/HybridModeSelector';
 import { ChatMessageItem } from './components/ChatMessageItem';
@@ -23,6 +28,8 @@ import {
   OllamaStatus,
   DriveDSyncStatus,
   AISystemDefinition,
+  ChatFileAttachment,
+  GenerationType,
 } from './types';
 import {
   getAllAISystems,
@@ -73,6 +80,28 @@ export default function App() {
   // PWA Install hook
   const { isInstallable, isInstalled, install: installPwa } = usePWAInstall();
 
+  // Active Software Workspace State ('chat' | 'models' | 'knowledge' | 'matrix' | 'system')
+  const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceTab>(() => {
+    return (localStorage.getItem('hybrid_active_workspace') as WorkspaceTab) || 'chat';
+  });
+
+  const handleSelectWorkspace = (tab: WorkspaceTab) => {
+    setActiveWorkspace(tab);
+    localStorage.setItem('hybrid_active_workspace', tab);
+  };
+
+  const handleSwitchToChatWithModel = (modelName: string) => {
+    setActiveOllamaModel(modelName);
+    setActiveWorkspace('chat');
+    localStorage.setItem('hybrid_active_workspace', 'chat');
+  };
+
+  const handleAskInChatWithContext = (snippetText: string) => {
+    setActiveWorkspace('chat');
+    localStorage.setItem('hybrid_active_workspace', 'chat');
+    handleSendMessage(snippetText);
+  };
+
   // Chat Focus & Font Size State
   const [isChatFocused, setIsChatFocused] = useState<boolean>(() => {
     return localStorage.getItem('hybrid_chat_focused') === 'true';
@@ -113,7 +142,7 @@ export default function App() {
   const [activeOllamaModel, setActiveOllamaModel] = useState<string>('llama3.2:3b');
 
   // Gemini State
-  const [activeGeminiModel, setActiveGeminiModel] = useState<string>('gemini-3.5-flash');
+  const [activeGeminiModel, setActiveGeminiModel] = useState<string>('gemini-3.8-flash');
   const [enableThinking, setEnableThinking] = useState<boolean>(true);
 
   // Drive D Knowledge Vault State
@@ -236,7 +265,7 @@ export default function App() {
       const st = await fetchDriveDStatus();
       setDriveDStatus(st);
     } catch (e) {
-      console.warn('Could not refresh Drive D status:', e);
+      console.log('[Notice] Drive D status update deferred:', e);
     }
   };
 
@@ -335,8 +364,14 @@ export default function App() {
   };
 
   // Main Chat / Hybrid Dispatcher
-  const handleSendMessage = async (text: string) => {
-    if (!text.trim() || isLoading) return;
+  const handleSendMessage = async (
+    text: string,
+    files?: ChatFileAttachment[],
+    generationType: GenerationType = 'chat',
+    aspectRatio = '16:9',
+    voice = 'Kore'
+  ) => {
+    if ((!text.trim() && (!files || files.length === 0)) || isLoading) return;
 
     setGeneralError(null);
 
@@ -347,12 +382,48 @@ export default function App() {
       engine: 'hybrid',
       modelName: 'User',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      attachments: files,
+      generationType,
     };
 
     setMessages((prev) => [...prev, userMessage]);
     setIsLoading(true);
 
     try {
+      // Specialized Generative Mode (Image, Audio/TTS, Video/Motion, Data)
+      if (generationType !== 'chat') {
+        const geminiRes = await generateGeminiResponse(
+          activeGeminiModel,
+          text,
+          undefined,
+          enableThinking,
+          files,
+          generationType,
+          aspectRatio,
+          voice
+        );
+
+        const assistantMsg: ChatMessage = {
+          id: `assistant-${Date.now()}`,
+          role: 'assistant',
+          content: geminiRes.text,
+          engine: 'gemini',
+          modelName: geminiRes.model,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          durationMs: geminiRes.durationMs,
+          generatedMedia: geminiRes.generatedMedia,
+          generationType,
+          metadata: {
+            mode: 'smart_router',
+            routedReason: `Multimodale Generierung: ${generationType.toUpperCase()}`,
+            savedToDriveD: geminiRes.savedToDriveD ?? true,
+            targetPath: geminiRes.targetPath || 'D:\\OllamaKnowledge\\media\\',
+          },
+        };
+        setMessages((prev) => [...prev, assistantMsg]);
+        return;
+      }
+
       // 0. Intel Loihi 2 Neuromorphic Spiking Engine: Sub-millisecond SNN decision & associative memory
       const loihi2Routing = await routeWithLoihi2(text, { enableStdp: true });
 
@@ -428,7 +499,10 @@ export default function App() {
         // Mode 1: Smart Router (Governed by Qwen-Decider & Loihi 2 SNN)
         const decision = convertQwenToRoutingDecision(qwenEval);
 
-        if (decision.chosenEngine === 'ollama') {
+        // If files are attached, route to multimodal Gemini Cloud
+        const hasMultimodalFiles = files && files.length > 0;
+
+        if (decision.chosenEngine === 'ollama' && !hasMultimodalFiles) {
           // Route to Ollama
           const ollamaRes = await generateOllamaResponse(
             customHost,
@@ -467,7 +541,11 @@ export default function App() {
               activeGeminiModel,
               text,
               undefined,
-              enableThinking || qwenEval.requiresThinking || activeGeminiModel === 'gemini-3.1-pro-preview'
+              enableThinking || qwenEval.requiresThinking || activeGeminiModel === 'gemini-3.1-pro-preview',
+              files,
+              generationType,
+              aspectRatio,
+              voice
             );
 
             const hallunoxVerification = await checkHallunoxGuardrail(text, geminiRes.text, geminiRes.model);
@@ -480,9 +558,15 @@ export default function App() {
               modelName: geminiRes.model,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               durationMs: geminiRes.durationMs,
+              generatedMedia: geminiRes.generatedMedia,
+              generationType,
               metadata: {
                 mode: 'smart_router',
-                routedReason: geminiRes.notes ? `${decision.reason} (${geminiRes.notes})` : decision.reason,
+                routedReason: hasMultimodalFiles
+                  ? `Multimodale Analyse von ${files.length} Datei(en) via Gemini Flash`
+                  : geminiRes.notes
+                  ? `${decision.reason} (${geminiRes.notes})`
+                  : decision.reason,
                 savedToDriveD: geminiRes.savedToDriveD ?? true,
                 targetPath: geminiRes.targetPath || 'D:\\OllamaKnowledge\\',
                 hallunoxVerification,
@@ -492,11 +576,20 @@ export default function App() {
             };
             setMessages((prev) => [...prev, assistantMsg]);
           } catch (geminiErr: any) {
-            console.warn('Gemini cloud temporarily unavailable, executing seamless hybrid failover to Ollama:', geminiErr);
+            console.log('[Failover] Gemini cloud temporarily unavailable, executing seamless hybrid failover to Ollama:', geminiErr);
+            let promptWithFiles = text;
+            if (files && files.length > 0) {
+              const textFiles = files.filter((f) => f.textContent);
+              if (textFiles.length > 0) {
+                promptWithFiles = `${text}\n\n[Angehängte Dateien]:\n` +
+                  textFiles.map((f) => `--- ${f.name} ---\n${f.textContent}`).join('\n\n');
+              }
+            }
+
             const ollamaRes = await generateOllamaResponse(
               customHost,
               activeOllamaModel,
-              text,
+              promptWithFiles,
               'Du bist eine hilfsbereite lokale KI auf Windows 11. Beantworte stets die konkrete inhaltliche Frage des Nutzers präzise, verständlich und auf Deutsch.',
               isDemoMode,
               true
@@ -699,7 +792,7 @@ export default function App() {
         setMessages((prev) => [...prev, assistantMsg]);
       }
     } catch (err: any) {
-      console.error('Chat error:', err);
+      console.log('[Notice] Chat handled inference exception:', err);
       let errMsg = err?.message || 'Ein Fehler ist bei der Inferenz aufgetreten.';
       try {
         if (typeof errMsg === 'string' && (errMsg.startsWith('{') || errMsg.includes('ApiError: {'))) {
@@ -738,6 +831,24 @@ export default function App() {
         onOpenAndroidApk={() => setIsAndroidApkOpen(true)}
       />
 
+      {/* 1b. Main Software Workstation Navigation Bar */}
+      <MainNavigation
+        activeWorkspace={activeWorkspace}
+        onSelectWorkspace={handleSelectWorkspace}
+        ollamaStatus={ollamaStatus}
+        activeOllamaModel={activeOllamaModel}
+        activeGeminiModel={activeGeminiModel}
+        hybridMode={hybridMode}
+        driveDCount={driveDStatus?.totalEntries ?? 3}
+        activeSystemsCount={activeSwarmCount}
+        onOpenDedicatedWindow={openDedicatedAppWindow}
+        onOpenPackager={() => setIsPackagerOpen(true)}
+        onOpenAndroidApk={() => setIsAndroidApkOpen(true)}
+        onInstallPwa={installPwa}
+        canInstallPwa={isInstallable}
+        isStandalone={isInstalled}
+      />
+
       {/* Dedicated Window Notification Banner (if running in iframe/preview) */}
       {isInsideIframe && !isDismissedWindowBanner && (
         <div className="bg-gradient-to-r from-indigo-950 via-slate-900 to-blue-950 border-b border-indigo-500/40 px-4 py-2 flex items-center justify-between text-xs text-indigo-100 z-20 shrink-0">
@@ -774,256 +885,356 @@ export default function App() {
         </div>
       )}
 
-      {/* 2. Top Header & Compact Control Center */}
-      {!isChatFocused ? (
-        <CompactControlBar
+      {/* WORKSPACE 1: STUDIO CHAT & REASONING */}
+      {activeWorkspace === 'chat' && (
+        <>
+          {/* Top Header & Compact Control Center */}
+          {!isChatFocused ? (
+            <CompactControlBar
+              ollamaStatus={ollamaStatus}
+              isScanning={isScanning}
+              onScan={scanOllama}
+              activeOllamaModel={activeOllamaModel}
+              onSelectOllamaModel={setActiveOllamaModel}
+              isDemoMode={isDemoMode}
+              onToggleDemoMode={handleToggleDemoMode}
+              customHost={customHost}
+              onChangeHost={handleHostChange}
+              mode={hybridMode}
+              onSelectMode={setHybridMode}
+              geminiModel={activeGeminiModel}
+              onSelectGeminiModel={setActiveGeminiModel}
+              enableThinking={enableThinking}
+              onToggleThinking={() => setEnableThinking((prev) => !prev)}
+              onOpenDriveD={() => setIsDriveDOpen(true)}
+              driveDCount={driveDStatus?.totalEntries ?? 3}
+              onOpenQwenDecider={() => {
+                setInitialDiagnosticTab('qwen');
+                setIsDiagnosticOpen(true);
+              }}
+              activeQwenModel={activeQwenDeciderModel}
+              onOpenLoihi2={() => {
+                setInitialDiagnosticTab('loihi2');
+                setIsDiagnosticOpen(true);
+              }}
+              onOpenDiagnostics={() => {
+                setInitialDiagnosticTab('tests');
+                setIsDiagnosticOpen(true);
+              }}
+              onOpenMatrixModal={() => setIsMatrixModalOpen(true)}
+              activeSystemsCount={activeSwarmCount}
+              onOpenPackager={() => setIsPackagerOpen(true)}
+              onOpenAndroidApk={() => setIsAndroidApkOpen(true)}
+              isChatFocused={isChatFocused}
+              onToggleChatFocus={toggleChatFocus}
+              chatFontSize={chatFontSize}
+              onToggleChatFontSize={toggleChatFontSize}
+            />
+          ) : (
+            <div className="bg-slate-950/95 border-b border-slate-800/80 px-4 py-1.5 flex items-center justify-between text-xs text-slate-400 z-10 shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-slate-200 font-medium">Fokus-Modus (Maximales Chatfenster)</span>
+                <span className="text-slate-600 hidden sm:inline">•</span>
+                <span className="text-emerald-400 font-mono text-[11px] hidden sm:inline">{activeOllamaModel}</span>
+                <span className="text-slate-600 hidden sm:inline">+</span>
+                <span className="text-cyan-400 font-mono text-[11px] hidden sm:inline">{activeGeminiModel}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsMatrixModalOpen(true)}
+                  className="px-2 py-0.5 rounded bg-cyan-950 border border-cyan-700/60 text-cyan-200 hover:text-white text-[11px] font-medium transition cursor-pointer"
+                >
+                  20 KI-Matrix ({activeSwarmCount}/20)
+                </button>
+                <button
+                  onClick={toggleChatFontSize}
+                  className="px-2.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-medium transition cursor-pointer"
+                  title="Schriftgröße umschalten"
+                >
+                  {chatFontSize === 'large' ? 'Schrift: Groß (A+)' : 'Schrift: Standard (A)'}
+                </button>
+                <button
+                  onClick={toggleChatFocus}
+                  className="px-2.5 py-0.5 rounded bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-medium transition cursor-pointer flex items-center gap-1 shadow-sm"
+                  title="Steuerleiste wieder einblenden"
+                >
+                  <Minimize2 className="w-3 h-3" />
+                  <span>Leiste einblenden</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Solo System Operator Bar when operating any single AI system individually */}
+          {hybridMode === 'solo_system' && (
+            <SoloSystemControlBar
+              activeSystem={currentSoloSystem}
+              allSystems={allAISystems}
+              onSelectSystem={handleSelectSoloSystem}
+              onSwitchToSwarm={handleSwitchToSwarmMode}
+              onOpenMatrixModal={() => setIsMatrixModalOpen(true)}
+              customHost={customHost}
+            />
+          )}
+
+          {/* Main Chat Stream & Workspace */}
+          <main className="flex-1 overflow-y-auto px-3 sm:px-6 lg:px-8 py-4 space-y-4">
+            <div className="w-full max-w-6xl 2xl:max-w-7xl mx-auto">
+              {/* Error Banner */}
+              {generalError && (
+                <div className="mb-4 p-3.5 bg-rose-950/80 border border-rose-800/80 rounded-xl text-rose-200 text-xs flex items-center justify-between gap-3 shadow-md">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                    <span>{generalError}</span>
+                  </div>
+                  <button
+                    onClick={() => setGeneralError(null)}
+                    className="px-2 py-0.5 bg-rose-900/60 hover:bg-rose-900 text-rose-100 rounded text-[11px]"
+                  >
+                    Ausblenden
+                  </button>
+                </div>
+              )}
+
+              {/* Welcome Screen if empty */}
+              {messages.length === 0 && (
+                <div className="my-6 text-center max-w-3xl mx-auto space-y-4 py-4">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-xs text-cyan-300">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Windows 11 Hybrid KI Workstation • Bereit</span>
+                  </div>
+
+                  <h2 className="text-2xl sm:text-3xl font-bold text-slate-100 tracking-tight">
+                    Lokales Ollama &amp; Google Gemini im Verbund
+                  </h2>
+
+                  <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
+                    Dieses System erkennt automatisch Ihre lokalen Sprachmodelle auf Windows 11 und
+                    kombiniert diese nahtlos mit Google Gemini Studio in der Cloud. Nutzen Sie absoluten
+                    Datenschutz für sensible Daten und unbegrenzte Rechenleistung für komplexe Analysen.
+                  </p>
+
+                  {/* 4 Feature cards including Drive D */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-left pt-2">
+                    <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1.5">
+                      <div className="w-7 h-7 rounded-lg bg-emerald-950/80 border border-emerald-700/50 flex items-center justify-center text-emerald-400">
+                        <Cpu className="w-4 h-4" />
+                      </div>
+                      <h4 className="font-semibold text-xs text-slate-200">1. Windows 11 Erkennung</h4>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                        Scannt <code className="text-slate-300 font-mono">127.0.0.1:11434</code> nach
+                        Llama 3, Mistral, Qwen und Phi Modellen.
+                      </p>
+                    </div>
+
+                    <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1.5">
+                      <div className="w-7 h-7 rounded-lg bg-cyan-950/80 border border-cyan-700/50 flex items-center justify-center text-cyan-400">
+                        <Sparkles className="w-4 h-4" />
+                      </div>
+                      <h4 className="font-semibold text-xs text-slate-200">2. Google Gemini Thinking</h4>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                        Höchste Denkstufe für komplexe Programmierung, Deep Reasoning und Verbund-Synthese.
+                      </p>
+                    </div>
+
+                    <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1.5">
+                      <div className="w-7 h-7 rounded-lg bg-amber-950/80 border border-amber-700/50 flex items-center justify-center text-amber-400">
+                        <HardDrive className="w-4 h-4" />
+                      </div>
+                      <h4 className="font-semibold text-xs text-slate-200">3. Laufwerk D: Tresor</h4>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                        Alle Cloud-Daten fließen automatisch nach <code className="text-slate-300 font-mono">D:\OllamaKnowledge</code> für Offline-RAG.
+                      </p>
+                    </div>
+
+                    <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1.5">
+                      <div className="w-7 h-7 rounded-lg bg-indigo-950/80 border border-indigo-700/50 flex items-center justify-center text-indigo-400">
+                        <Layers className="w-4 h-4" />
+                      </div>
+                      <h4 className="font-semibold text-xs text-slate-200">4. Native *.EXE Ausführung</h4>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                        Unabhängig ohne Browser als Desktop-App ausführbar mit 1-Klick Installer &amp; Skripten.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 1-Click Starter Prompts for Easy Understanding */}
+                  <div className="space-y-2 pt-2 text-left">
+                    <div className="text-xs font-semibold text-slate-400">
+                      Schnellstarter (Klicken zum sofortigen Ausprobieren):
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <button
+                        onClick={() =>
+                          handleSendMessage(
+                            'Erstelle mir eine prägnante, datenschutzkonforme Zusammenfassung der wichtigsten Vorteile von lokalen Sprachmodellen auf Windows 11 gegenüber reinen Cloud-Modellen.'
+                          )
+                        }
+                        className="p-3 rounded-xl bg-slate-900 hover:bg-slate-800/80 border border-slate-800 text-left transition cursor-pointer space-y-1"
+                      >
+                        <div className="text-xs font-semibold text-emerald-300 flex items-center gap-1.5">
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          <span>DSGVO-Vergleich lokal vs. Cloud</span>
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          Automatische Weiche entscheidet, welcher Teil lokal gerechnet wird.
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() =>
+                          handleSendMessage(
+                            'Schreibe eine performante TypeScript-Funktion zur Validierung von API-Schlüsseln mit regulären Ausdrücken und Unit-Tests.'
+                          )
+                        }
+                        className="p-3 rounded-xl bg-slate-900 hover:bg-slate-800/80 border border-slate-800 text-left transition cursor-pointer space-y-1"
+                      >
+                        <div className="text-xs font-semibold text-cyan-300 flex items-center gap-1.5">
+                          <Cpu className="w-3.5 h-3.5" />
+                          <span>Code-Generierung &amp; Testing</span>
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          Nutzt Qwen Coder lokal und Gemini Thinking für sauberen Code.
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setHybridMode('matrix_swarm');
+                          handleSendMessage(
+                            'Welche drei architektonischen Maßnahmen garantieren die höchste Skalierbarkeit für hybride KI-Workstations in Unternehmen?'
+                          );
+                        }}
+                        className="p-3 rounded-xl bg-slate-900 hover:bg-slate-800/80 border border-slate-800 text-left transition cursor-pointer space-y-1"
+                      >
+                        <div className="text-xs font-semibold text-purple-300 flex items-center gap-1.5">
+                          <Layers className="w-3.5 h-3.5" />
+                          <span>20-KI Schwarm-Konsens</span>
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          Lässt alle 20 Spezialsysteme gleichzeitig denken und Konsens bilden.
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() =>
+                          handleSendMessage(
+                            'Löse folgende logische Denkaufgabe Schritt für Schritt mit voller Gedankenkette: Wenn drei Schalter außerhalb eines Raumes eine Glühbirne im Raum steuern, wie ermittelt man mit genau einem Betreten des Raumes den richtigen Schalter?'
+                          )
+                        }
+                        className="p-3 rounded-xl bg-slate-900 hover:bg-slate-800/80 border border-slate-800 text-left transition cursor-pointer space-y-1"
+                      >
+                        <div className="text-xs font-semibold text-amber-300 flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>Gemini Deep Thinking Rätsel</span>
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          Schrittweise Herleitung mit transparenter Gedankenkette.
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Messages Stream */}
+              {messages.map((msg) => (
+                <ChatMessageItem key={msg.id} message={msg} fontSize={chatFontSize} />
+              ))}
+
+              {/* Loading Indicator */}
+              {isLoading && (
+                <div className="my-4 p-4 bg-slate-900/80 border border-slate-800 rounded-2xl max-w-xl animate-pulse flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-cyan-950 border border-cyan-800/80 flex items-center justify-center text-cyan-400">
+                    <Sparkles className="w-4 h-4 animate-spin" />
+                  </div>
+                  <div className="text-xs text-slate-300">
+                    <div className="font-medium text-slate-200">
+                      {hybridMode === 'smart_router' && 'Smart Router analysiert & generiert...'}
+                      {hybridMode === 'side_by_side' && 'Führe Ollama & Gemini parallel aus...'}
+                      {hybridMode === 'collaborative' && 'Stufe 1 & Stufe 2 Verbund-Ausführung...'}
+                      {hybridMode === 'consensus' && 'Erzeuge Konsensus-Synthese...'}
+                      {hybridMode === 'matrix_swarm' && '20-KI Schwarm generiert Master-Synthese...'}
+                      {hybridMode === 'solo_system' && `Solo-System ${currentSoloSystem.name} rechnet...`}
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">
+                      Lokale Inferenz ({activeOllamaModel}) &amp; Google AI ({activeGeminiModel})
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div ref={messagesEndRef} />
+            </div>
+          </main>
+
+          {/* Bottom Prompt Input Bar */}
+          <footer className="border-t border-slate-800/80 bg-slate-950/95 backdrop-blur px-3 sm:px-6 lg:px-8 py-2.5 shrink-0">
+            <div className="w-full max-w-6xl 2xl:max-w-7xl mx-auto">
+              <PromptInputBar
+                onSendMessage={handleSendMessage}
+                isLoading={isLoading}
+                onClearHistory={handleClearHistory}
+                hasMessages={messages.length > 0}
+                activeMode={hybridMode}
+              />
+            </div>
+          </footer>
+        </>
+      )}
+
+      {/* WORKSPACE 2: MODELL-ZENTRALE */}
+      {activeWorkspace === 'models' && (
+        <ModelHubView
           ollamaStatus={ollamaStatus}
-          isScanning={isScanning}
-          onScan={scanOllama}
           activeOllamaModel={activeOllamaModel}
           onSelectOllamaModel={setActiveOllamaModel}
-          isDemoMode={isDemoMode}
-          onToggleDemoMode={handleToggleDemoMode}
+          onScan={scanOllama}
+          isScanning={isScanning}
           customHost={customHost}
           onChangeHost={handleHostChange}
-          mode={hybridMode}
-          onSelectMode={setHybridMode}
+          isDemoMode={isDemoMode}
+          onToggleDemoMode={handleToggleDemoMode}
+          onSwitchToChatWithModel={handleSwitchToChatWithModel}
+        />
+      )}
+
+      {/* WORKSPACE 3: WISSENS-TRESOR (RAG) */}
+      {activeWorkspace === 'knowledge' && (
+        <KnowledgeVaultView
+          driveDStatus={driveDStatus}
+          onRefreshDriveD={refreshDriveDStatus}
+          onAskInChatWithContext={handleAskInChatWithContext}
+        />
+      )}
+
+      {/* WORKSPACE 4: 20-KI-MATRIX */}
+      {activeWorkspace === 'matrix' && (
+        <AiMatrixView
+          activeSoloSystemId={activeSoloSystemId}
+          onSelectSoloSystem={handleSelectSoloSystem}
+          onSwitchToSoloMode={handleSwitchToSoloMode}
+          onSwitchToSwarmMode={handleSwitchToSwarmMode}
+          isSoloMode={hybridMode === 'solo_system'}
+          customHost={customHost}
+          onSwitchToChat={() => handleSelectWorkspace('chat')}
+        />
+      )}
+
+      {/* WORKSPACE 5: SYSTEM-LABOR & DOWNLOADS */}
+      {activeWorkspace === 'system' && (
+        <SystemLabView
+          ollamaHost={customHost}
+          ollamaModel={activeOllamaModel}
           geminiModel={activeGeminiModel}
-          onSelectGeminiModel={setActiveGeminiModel}
-          enableThinking={enableThinking}
-          onToggleThinking={() => setEnableThinking((prev) => !prev)}
-          onOpenDriveD={() => setIsDriveDOpen(true)}
-          driveDCount={driveDStatus?.totalEntries ?? 3}
-          onOpenQwenDecider={() => {
-            setInitialDiagnosticTab('qwen');
-            setIsDiagnosticOpen(true);
-          }}
-          activeQwenModel={activeQwenDeciderModel}
-          onOpenLoihi2={() => {
-            setInitialDiagnosticTab('loihi2');
-            setIsDiagnosticOpen(true);
-          }}
-          onOpenDiagnostics={() => {
-            setInitialDiagnosticTab('tests');
-            setIsDiagnosticOpen(true);
-          }}
-          onOpenMatrixModal={() => setIsMatrixModalOpen(true)}
-          activeSystemsCount={activeSwarmCount}
           onOpenPackager={() => setIsPackagerOpen(true)}
           onOpenAndroidApk={() => setIsAndroidApkOpen(true)}
-          isChatFocused={isChatFocused}
-          onToggleChatFocus={toggleChatFocus}
-          chatFontSize={chatFontSize}
-          onToggleChatFontSize={toggleChatFontSize}
-        />
-      ) : (
-        <div className="bg-slate-950/95 border-b border-slate-800/80 px-4 py-1.5 flex items-center justify-between text-xs text-slate-400 z-10 shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-slate-200 font-medium">Fokus-Modus (Maximales Chatfenster)</span>
-            <span className="text-slate-600 hidden sm:inline">•</span>
-            <span className="text-emerald-400 font-mono text-[11px] hidden sm:inline">{activeOllamaModel}</span>
-            <span className="text-slate-600 hidden sm:inline">+</span>
-            <span className="text-cyan-400 font-mono text-[11px] hidden sm:inline">{activeGeminiModel}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsMatrixModalOpen(true)}
-              className="px-2 py-0.5 rounded bg-cyan-950 border border-cyan-700/60 text-cyan-200 hover:text-white text-[11px] font-medium transition cursor-pointer"
-            >
-              20 KI-Matrix ({activeSwarmCount}/20)
-            </button>
-            <button
-              onClick={toggleChatFontSize}
-              className="px-2.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-medium transition cursor-pointer"
-              title="Schriftgröße umschalten"
-            >
-              {chatFontSize === 'large' ? 'Schrift: Groß (A+)' : 'Schrift: Standard (A)'}
-            </button>
-            <button
-              onClick={toggleChatFocus}
-              className="px-2.5 py-0.5 rounded bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-medium transition cursor-pointer flex items-center gap-1 shadow-sm"
-              title="Steuerleiste wieder einblenden"
-            >
-              <Minimize2 className="w-3 h-3" />
-              <span>Leiste einblenden</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* 2b. Solo System Operator Bar when operating any single AI system individually */}
-      {hybridMode === 'solo_system' && (
-        <SoloSystemControlBar
-          activeSystem={currentSoloSystem}
-          allSystems={allAISystems}
-          onSelectSystem={handleSelectSoloSystem}
-          onSwitchToSwarm={handleSwitchToSwarmMode}
-          onOpenMatrixModal={() => setIsMatrixModalOpen(true)}
-          customHost={customHost}
+          onInstallPwa={installPwa}
+          canInstallPwa={isInstallable}
+          isStandalone={isInstalled}
         />
       )}
-
-      {/* 3. Main Chat Stream & Workspace (Gross & Übersichtlich für lange Texte) */}
-      <main className="flex-1 overflow-y-auto px-3 sm:px-6 lg:px-8 py-4 space-y-4">
-        <div className="w-full max-w-6xl 2xl:max-w-7xl mx-auto">
-          {/* Error Banner */}
-          {generalError && (
-            <div className="mb-4 p-3.5 bg-rose-950/80 border border-rose-800/80 rounded-xl text-rose-200 text-xs flex items-center justify-between gap-3 shadow-md">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-                <span>{generalError}</span>
-              </div>
-              <button
-                onClick={() => setGeneralError(null)}
-                className="px-2 py-0.5 bg-rose-900/60 hover:bg-rose-900 text-rose-100 rounded text-[11px]"
-              >
-                Ausblenden
-              </button>
-            </div>
-          )}
-
-          {/* Welcome Screen if empty */}
-          {messages.length === 0 && (
-            <div className="my-8 text-center max-w-3xl mx-auto space-y-4 py-6">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-xs text-cyan-300">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Windows 11 Hybrid KI Workstation • Bereit</span>
-              </div>
-
-              <h2 className="text-2xl sm:text-3xl font-bold text-slate-100 tracking-tight">
-                Lokales Ollama & Google Gemini im Verbund
-              </h2>
-
-              <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
-                Dieses System erkennt automatisch Ihre lokalen Sprachmodelle auf Windows 11 und
-                kombiniert diese nahtlos mit Google Gemini Studio in der Cloud. Nutzen Sie absoluten
-                Datenschutz für sensible Daten und unbegrenzte Rechenleistung für komplexe Analysen.
-              </p>
-
-              {/* 4 Feature cards including Drive D */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-left pt-2">
-                <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1.5">
-                  <div className="w-7 h-7 rounded-lg bg-emerald-950/80 border border-emerald-700/50 flex items-center justify-center text-emerald-400">
-                    <Cpu className="w-4 h-4" />
-                  </div>
-                  <h4 className="font-semibold text-xs text-slate-200">1. Windows 11 Erkennung</h4>
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
-                    Scannt <code className="text-slate-300 font-mono">127.0.0.1:11434</code> nach
-                    Llama 3, Mistral, Qwen und Phi Modellen.
-                  </p>
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1.5">
-                  <div className="w-7 h-7 rounded-lg bg-cyan-950/80 border border-cyan-700/50 flex items-center justify-center text-cyan-400">
-                    <Sparkles className="w-4 h-4" />
-                  </div>
-                  <h4 className="font-semibold text-xs text-slate-200">2. Google Gemini Thinking</h4>
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
-                    Höchste Denkstufe für komplexe Programmierung, Deep Reasoning und Verbund-Synthese.
-                  </p>
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1.5">
-                  <div className="w-7 h-7 rounded-lg bg-amber-950/80 border border-amber-700/50 flex items-center justify-center text-amber-400">
-                    <HardDrive className="w-4 h-4" />
-                  </div>
-                  <h4 className="font-semibold text-xs text-slate-200">3. Laufwerk D: Tresor</h4>
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
-                    Alle Cloud-Daten fließen automatisch nach <code className="text-slate-300 font-mono">D:\OllamaKnowledge</code> für Offline-RAG.
-                  </p>
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1.5">
-                  <div className="w-7 h-7 rounded-lg bg-indigo-950/80 border border-indigo-700/50 flex items-center justify-center text-indigo-400">
-                    <Layers className="w-4 h-4" />
-                  </div>
-                  <h4 className="font-semibold text-xs text-slate-200">4. Native *.EXE Ausführung</h4>
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
-                    Unabhängig ohne Browser als Desktop-App ausführbar mit 1-Klick Installer & Skripten.
-                  </p>
-                </div>
-              </div>
-
-              {/* Quick Action Badges */}
-              <div className="flex flex-wrap items-center justify-center gap-2 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setIsDiagnosticOpen(true)}
-                  className="px-3.5 py-1.5 rounded-xl bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-500/40 text-cyan-200 text-xs font-medium flex items-center gap-2 transition cursor-pointer"
-                >
-                  <Activity className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>Herz & Nieren Komplett-Test starten</span>
-                  <span className="bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded text-[10px]">99%</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setIsDriveDOpen(true)}
-                  className="px-3.5 py-1.5 rounded-xl bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/40 text-amber-200 text-xs font-medium flex items-center gap-2 transition cursor-pointer"
-                >
-                  <HardDrive className="w-3.5 h-3.5 text-amber-400" />
-                  <span>D:\OllamaKnowledge Archiv öffnen</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setInitialDiagnosticTab('loihi2');
-                    setIsDiagnosticOpen(true);
-                  }}
-                  className="px-3.5 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-200 text-xs font-medium flex items-center gap-2 transition cursor-pointer"
-                  title="Intel Loihi 2 SNN Oszilloskop &amp; Neuromorpher Lava Simulator (< 1ms)"
-                >
-                  <Zap className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-                  <span>Intel® Loihi 2 SNN</span>
-                  <span className="bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded text-[10px] font-mono">&lt; 1ms • 38mW</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Messages Stream */}
-          {messages.map((msg) => (
-            <ChatMessageItem key={msg.id} message={msg} fontSize={chatFontSize} />
-          ))}
-
-          {/* Loading Indicator */}
-          {isLoading && (
-            <div className="my-4 p-4 bg-slate-900/80 border border-slate-800 rounded-2xl max-w-xl animate-pulse flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-cyan-950 border border-cyan-800/80 flex items-center justify-center text-cyan-400">
-                <Sparkles className="w-4 h-4 animate-spin" />
-              </div>
-              <div className="text-xs text-slate-300">
-                <div className="font-medium text-slate-200">
-                  {hybridMode === 'smart_router' && 'Smart Router analysiert & generiert...'}
-                  {hybridMode === 'side_by_side' && 'Führe Ollama & Gemini parallel aus...'}
-                  {hybridMode === 'collaborative' && 'Stufe 1 & Stufe 2 Verbund-Ausführung...'}
-                  {hybridMode === 'consensus' && 'Erzeuge Konsensus-Synthese...'}
-                </div>
-                <div className="text-[11px] text-slate-500 mt-0.5">
-                  Lokale Inferenz ({activeOllamaModel}) & Google AI ({activeGeminiModel})
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
-      </main>
-
-      {/* 4. Bottom Prompt Input Bar */}
-      <footer className="border-t border-slate-800/80 bg-slate-950/95 backdrop-blur px-3 sm:px-6 lg:px-8 py-2.5 shrink-0">
-        <div className="w-full max-w-6xl 2xl:max-w-7xl mx-auto">
-          <PromptInputBar
-            onSendMessage={handleSendMessage}
-            isLoading={isLoading}
-            onClearHistory={handleClearHistory}
-            hasMessages={messages.length > 0}
-            activeMode={hybridMode}
-          />
-        </div>
-      </footer>
 
       {/* 5. Desktop Packager & Windows EXE Modal */}
       <DesktopPackagerModal

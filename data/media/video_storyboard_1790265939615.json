@@ -1,0 +1,41 @@
+{
+  "title": "Motion Storyboard: Cinematic Drone Shot of Data Center",
+  "aspectRatio": "16:9",
+  "resolution": "1080p",
+  "durationSeconds": 12,
+  "fps": 30,
+  "scenes": [
+    {
+      "sceneNumber": 1,
+      "durationSeconds": 3,
+      "camera": "Slow Zoom-In (Pan Center)",
+      "description": "Intro Sequenz: Cinematic Drone Shot of Data Center",
+      "subtitles": "Start der visuellen Präsentation: Cinematic Drone Shot of Data Center...",
+      "keyframeBg": "/api/media/gen_img_1790265939615.svg"
+    },
+    {
+      "sceneNumber": 2,
+      "durationSeconds": 3,
+      "camera": "Dynamic Lateral Tracking Shot",
+      "description": "Detail-Darstellung und Fokus auf Hauptattribute",
+      "subtitles": "Analyse und Transformation der Eingangsdaten.",
+      "keyframeBg": "/api/media/gen_img_1790265939615.svg"
+    },
+    {
+      "sceneNumber": 3,
+      "durationSeconds": 3,
+      "camera": "Wide Angle Cinematic Elevation",
+      "description": "Komplexer Kontext und Verbunddarstellung",
+      "subtitles": "Skalierung im hybriden Verbund (Cloud & Edge).",
+      "keyframeBg": "/api/media/gen_img_1790265939615.svg"
+    },
+    {
+      "sceneNumber": 4,
+      "durationSeconds": 3,
+      "camera": "Slow Fade-Out mit Akzentbeleuchtung",
+      "description": "Abschluss-Szene mit Ergebnisübersicht",
+      "subtitles": "Ergebnis verifiziert und auf Laufwerk D: archiviert.",
+      "keyframeBg": "/api/media/gen_img_1790265939615.svg"
+    }
+  ]
+}

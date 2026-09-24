@@ -116,6 +116,45 @@ export interface GeminiModelInfo {
   recommendedTier: string;
 }
 
+export type MultimodalFileType = 'image' | 'video' | 'audio' | 'pdf' | 'code' | 'data' | 'text';
+
+export type GenerationType = 'chat' | 'image' | 'audio' | 'video' | 'data';
+
+export interface ChatFileAttachment {
+  id: string;
+  name: string;
+  size: number;
+  mimeType: string;
+  type: MultimodalFileType;
+  dataUrl: string; // base64 data url
+  thumbnailUrl?: string;
+  textContent?: string;
+  durationSeconds?: number;
+  width?: number;
+  height?: number;
+}
+
+export interface GeneratedMediaItem {
+  id: string;
+  type: 'image' | 'audio' | 'video' | 'data';
+  title: string;
+  description?: string;
+  url: string; // data URL or /api/media/...
+  mimeType: string;
+  aspectRatio?: string;
+  promptUsed?: string;
+  modelUsed?: string;
+  sizeBytes?: number;
+  durationSeconds?: number;
+  targetPath?: string; // e.g. D:\OllamaKnowledge\media\...
+  codeSnippet?: string;
+  language?: string;
+  downloadFilename: string;
+  thumbnailUrl?: string;
+  subtitles?: string[];
+  playbackSpeed?: number;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
@@ -125,6 +164,9 @@ export interface ChatMessage {
   timestamp: string;
   durationMs?: number;
   thinkingContent?: string;
+  attachments?: ChatFileAttachment[];
+  generatedMedia?: GeneratedMediaItem[];
+  generationType?: GenerationType;
   metadata?: {
     mode?: HybridMode;
     routedReason?: string;

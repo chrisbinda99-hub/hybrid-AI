@@ -1,0 +1,51 @@
+{
+  "id": "vram-alert-1790263363710",
+  "reportType": "CRITICAL_VRAM_THRESHOLD_EXCEEDED",
+  "status": "ALERT_LOGGED",
+  "timestamp": "2026-09-24T15:22:43.710Z",
+  "targetPath": "D:\\OllamaKnowledge\\diagnostics\\vram_alert_report_2026-09-24_15-22-43.json",
+  "fileName": "vram_alert_report_2026-09-24_15-22-43.json",
+  "gpu": {
+    "name": "NVIDIA GeForce RTX 4060 (Windows 11 DirectML / CUDA)",
+    "tier": "8gb",
+    "mode": "active",
+    "totalVramGb": 8,
+    "usedVramGb": 0,
+    "freeVramGb": 0,
+    "vramPercent": 0,
+    "breakdown": {
+      "windows11DwmGb": 1.1,
+      "modelVramGb": 0,
+      "kvCacheGb": 0.5,
+      "freeGb": 8
+    }
+  },
+  "threshold": {
+    "configuredThresholdGb": 6.5,
+    "exceededByGb": 0,
+    "percentOfTotal": 81,
+    "triggeredAt": "2026-09-24T15:22:43.710Z",
+    "autoTriggered": true
+  },
+  "activeModel": {
+    "name": "llama3.2:3b",
+    "sizeVramGb": 1.8,
+    "gpuOffloadPercent": 100,
+    "layersOnGpu": 28,
+    "totalLayers": 28,
+    "quantization": "Q4_K_M"
+  },
+  "systemContext": {
+    "platform": "win32",
+    "os": "Windows 11 (DirectML / CUDA / DWM Active)",
+    "ollamaHost": "http://127.0.0.1:11434",
+    "statusLevel": "critical",
+    "warnings": [
+      "Kritische VRAM-Schwelle überschritten: 0.0 GB belegt (Grenzwert: 6.5 GB)."
+    ],
+    "recommendations": [
+      "Auf kleineres Modell wechseln oder VRAM jetzt leeren."
+    ]
+  },
+  "incidentSummary": "Kritische VRAM-Schwelle überschritten: 0.0 GB belegt (Schwelle: 6.5 GB). Modell: Ollama. Gespeichert in D:\\OllamaKnowledge\\diagnostics\\vram_alert_report_2026-09-24_15-22-43.json"
+}

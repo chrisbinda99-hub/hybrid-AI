@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
@@ -26,8 +26,21 @@ import {
   Layers,
   Play,
   Radio,
+  Image as ImageIcon,
+  Film,
+  Music,
+  FileText,
+  FileCode,
+  FileSpreadsheet,
+  Volume2,
+  Pause,
+  Maximize2,
+  X,
+  Eye,
+  FileCheck,
 } from 'lucide-react';
-import { ChatMessage } from '../types';
+import { formatBytes } from '../services/multimodalService';
+import { ChatMessage, ChatFileAttachment, GeneratedMediaItem } from '../types';
 
 interface Props {
   message: ChatMessage;
@@ -373,6 +386,29 @@ export const ChatMessageItem: React.FC<Props> = ({ message, fontSize = 'normal' 
   const [expandedSystemId, setExpandedSystemId] = useState<string | null>(null);
   const [showAllSwarmResponses, setShowAllSwarmResponses] = useState(false);
 
+  // Multimodal Media Viewer States
+  const [zoomedImage, setZoomedImage] = useState<{ url: string; title: string } | null>(null);
+  const [activeAudioUrl, setActiveAudioUrl] = useState<string | null>(null);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [activeVideoScene, setActiveVideoScene] = useState<number>(0);
+  const [expandedFileSnippet, setExpandedFileSnippet] = useState<string | null>(null);
+
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const handleToggleAudio = (url: string) => {
+    if (activeAudioUrl === url && isPlayingAudio) {
+      audioRef.current?.pause();
+      setIsPlayingAudio(false);
+    } else {
+      setActiveAudioUrl(url);
+      setIsPlayingAudio(true);
+      if (audioRef.current) {
+        audioRef.current.src = url;
+        audioRef.current.play().catch(() => {});
+      }
+    }
+  };
+
   const handleSwitchToSolo = (systemId: string) => {
     window.dispatchEvent(new CustomEvent('switch-to-solo-system', { detail: { systemId } }));
   };
@@ -389,13 +425,126 @@ export const ChatMessageItem: React.FC<Props> = ({ message, fontSize = 'normal' 
   if (isUser) {
     return (
       <div className="flex justify-end my-3 sm:my-4">
-        <div className="w-full max-w-3xl lg:max-w-4xl bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 text-white rounded-2xl rounded-tr-sm px-4 py-3 sm:px-5 sm:py-3.5 shadow-lg shadow-cyan-950/20">
-          <div className="flex items-center gap-1.5 text-xs text-cyan-100/90 mb-1 font-medium">
-            <User className="w-3.5 h-3.5" />
-            <span>Benutzer</span>
-            <span>•</span>
-            <span>{message.timestamp}</span>
+        {/* Hidden Audio Player instance */}
+        <audio
+          ref={audioRef}
+          onEnded={() => setIsPlayingAudio(false)}
+          className="hidden"
+        />
+
+        {/* Fullscreen Image Zoom Modal */}
+        {zoomedImage && (
+          <div
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-4"
+            onClick={() => setZoomedImage(null)}
+          >
+            <div className="relative max-w-5xl max-h-[90vh] flex flex-col items-center">
+              <img
+                src={zoomedImage.url}
+                alt={zoomedImage.title}
+                className="max-w-full max-h-[82vh] rounded-xl object-contain shadow-2xl border border-slate-700"
+                onClick={(e) => e.stopPropagation()}
+              />
+              <div className="flex items-center justify-between w-full mt-3 px-2 text-slate-300 text-sm">
+                <span className="font-medium truncate">{zoomedImage.title}</span>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={zoomedImage.url}
+                    download={zoomedImage.title || 'image.png'}
+                    className="px-3 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-medium text-xs flex items-center gap-1.5 transition"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download</span>
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setZoomedImage(null)}
+                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
+        )}
+
+        <div className="w-full max-w-3xl lg:max-w-4xl bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 text-white rounded-2xl rounded-tr-sm px-4 py-3 sm:px-5 sm:py-3.5 shadow-lg shadow-cyan-950/20 space-y-2">
+          <div className="flex items-center justify-between text-xs text-cyan-100/90 font-medium">
+            <div className="flex items-center gap-1.5">
+              <User className="w-3.5 h-3.5" />
+              <span>Benutzer</span>
+              <span>•</span>
+              <span>{message.timestamp}</span>
+            </div>
+            {message.attachments && message.attachments.length > 0 && (
+              <span className="px-2 py-0.5 rounded-full bg-white/20 text-[10px] font-mono">
+                {message.attachments.length} Anhang/Anhänge
+              </span>
+            )}
+          </div>
+
+          {/* User Attachments Gallery */}
+          {message.attachments && message.attachments.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 pb-1">
+              {message.attachments.map((att) => (
+                <div
+                  key={att.id}
+                  className="flex items-center gap-2.5 p-2 rounded-xl bg-black/30 backdrop-blur-sm border border-white/15 text-xs text-white shadow-xs"
+                >
+                  {att.type === 'image' && att.thumbnailUrl ? (
+                    <img
+                      src={att.thumbnailUrl}
+                      alt={att.name}
+                      onClick={() => setZoomedImage({ url: att.dataUrl || att.thumbnailUrl!, title: att.name })}
+                      className="w-12 h-12 rounded-lg object-cover cursor-zoom-in hover:opacity-90 border border-white/20 shrink-0"
+                    />
+                  ) : att.type === 'video' ? (
+                    <div className="w-12 h-12 rounded-lg bg-purple-950/80 border border-purple-400/30 flex items-center justify-center shrink-0">
+                      <Film className="w-6 h-6 text-purple-300" />
+                    </div>
+                  ) : att.type === 'audio' ? (
+                    <div className="w-12 h-12 rounded-lg bg-emerald-950/80 border border-emerald-400/30 flex items-center justify-center shrink-0">
+                      <Music className="w-6 h-6 text-emerald-300" />
+                    </div>
+                  ) : (
+                    <div className="w-12 h-12 rounded-lg bg-slate-800/80 border border-slate-600 flex items-center justify-center shrink-0">
+                      <FileText className="w-6 h-6 text-cyan-300" />
+                    </div>
+                  )}
+
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <span className="font-semibold text-[12px] truncate">{att.name}</span>
+                    <span className="text-[10px] text-cyan-200 font-mono">
+                      {formatBytes(att.size)}
+                      {att.durationSeconds ? ` • ${att.durationSeconds}s` : ''}
+                    </span>
+                    {att.type === 'audio' && (
+                      <button
+                        type="button"
+                        onClick={() => handleToggleAudio(att.dataUrl)}
+                        className="mt-1 text-[10px] text-emerald-200 hover:text-white flex items-center gap-1 font-medium underline"
+                      >
+                        {isPlayingAudio && activeAudioUrl === att.dataUrl ? (
+                          <>
+                            <Pause className="w-3 h-3" />
+                            <span>Pausieren</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-3 h-3" />
+                            <span>Anhören</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div
             className={`whitespace-pre-wrap leading-relaxed ${
               fontSize === 'large' ? 'text-base sm:text-lg' : 'text-[15px] sm:text-base'
@@ -945,6 +1094,332 @@ export const ChatMessageItem: React.FC<Props> = ({ message, fontSize = 'normal' 
           <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
             {normalizeMarkdownContent(message.content)}
           </Markdown>
+        </div>
+      )}
+
+      {/* Generated Multimodal Media Showcase */}
+      {message.generatedMedia && message.generatedMedia.length > 0 && (
+        <div className="mt-4 pt-3.5 border-t border-slate-800/80 space-y-3.5">
+          <div className="flex items-center gap-2 text-xs text-slate-300 font-semibold">
+            <Sparkles className="w-4 h-4 text-cyan-400" />
+            <span>Generiertes Daten- &amp; Medienmaterial ({message.generatedMedia.length}):</span>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3.5">
+            {message.generatedMedia.map((media) => {
+              if (media.type === 'image') {
+                return (
+                  <div
+                    key={media.id}
+                    className="rounded-2xl border border-slate-800 bg-slate-950 overflow-hidden shadow-lg"
+                  >
+                    <div className="px-4 py-2 bg-slate-900/80 border-b border-slate-800/80 flex items-center justify-between flex-wrap gap-2 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded bg-fuchsia-500/20 text-fuchsia-300 font-semibold text-[10px] border border-fuchsia-500/30">
+                          BILDMATERIAL
+                        </span>
+                        <span className="font-semibold text-slate-200">{media.title}</span>
+                        {media.aspectRatio && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 font-mono text-slate-400">
+                            {media.aspectRatio}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setZoomedImage({ url: media.url, title: media.title })}
+                          className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] flex items-center gap-1 transition cursor-pointer"
+                        >
+                          <Eye className="w-3 h-3 text-cyan-400" />
+                          <span>Vergrößern</span>
+                        </button>
+                        <a
+                          href={media.url}
+                          download={media.downloadFilename || 'image.png'}
+                          className="px-2.5 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-medium flex items-center gap-1 transition"
+                        >
+                          <Download className="w-3 h-3" />
+                          <span>Download</span>
+                        </a>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-slate-950/60 flex flex-col items-center justify-center">
+                      <img
+                        src={media.url}
+                        alt={media.title}
+                        onClick={() => setZoomedImage({ url: media.url, title: media.title })}
+                        className="max-h-96 w-auto rounded-xl object-contain cursor-zoom-in hover:brightness-105 transition-all shadow-md border border-slate-800/80"
+                      />
+                    </div>
+
+                    <div className="px-4 py-2 bg-slate-900/40 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-400">
+                      <span>{media.description || media.modelUsed}</span>
+                      <span className="font-mono text-[10px] text-cyan-400">
+                        {media.targetPath || 'D:\\OllamaKnowledge\\media\\'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              }
+
+              if (media.type === 'audio') {
+                const isPlaying = isPlayingAudio && activeAudioUrl === media.url;
+                return (
+                  <div
+                    key={media.id}
+                    className="rounded-2xl border border-slate-800 bg-slate-950 overflow-hidden shadow-lg p-4 space-y-3"
+                  >
+                    <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-semibold text-[10px] border border-emerald-500/30">
+                          SPRACHAUSGABE / AUDIO
+                        </span>
+                        <span className="font-semibold text-slate-200">{media.title}</span>
+                      </div>
+
+                      <a
+                        href={media.url}
+                        download={media.downloadFilename || 'audio.wav'}
+                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-medium flex items-center gap-1 transition"
+                      >
+                        <Download className="w-3 h-3" />
+                        <span>WAV Audio speichern</span>
+                      </a>
+                    </div>
+
+                    {/* Interactive Audio Player Deck */}
+                    <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center gap-3.5">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleAudio(media.url)}
+                        className={`w-11 h-11 rounded-xl flex items-center justify-center transition cursor-pointer shadow-md shrink-0 ${
+                          isPlaying
+                            ? 'bg-amber-500 text-slate-950 hover:bg-amber-400 animate-pulse'
+                            : 'bg-emerald-600 text-white hover:bg-emerald-500'
+                        }`}
+                        title={isPlaying ? 'Audio pausieren' : 'Audio abspielen'}
+                      >
+                        {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
+                      </button>
+
+                      <div className="flex flex-col flex-1 gap-1.5 min-w-0">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-300 font-medium truncate">
+                            {isPlaying ? 'Wiedergabe aktiv...' : 'Bereit zur Wiedergabe'}
+                          </span>
+                          <span className="text-[11px] text-emerald-400 font-mono">
+                            {media.durationSeconds ? `~${media.durationSeconds}s` : 'WAV Studio Audio'}
+                          </span>
+                        </div>
+
+                        {/* Visualizer bars */}
+                        <div className="flex items-end gap-1 h-5 w-full">
+                          {[40, 65, 85, 55, 75, 95, 60, 45, 80, 70, 90, 50, 60, 85, 75, 45, 95, 60, 70, 50].map((h, bIdx) => (
+                            <div
+                              key={bIdx}
+                              className={`flex-1 rounded-t transition-all ${
+                                isPlaying
+                                  ? 'bg-emerald-400 animate-pulse'
+                                  : 'bg-slate-700'
+                              }`}
+                              style={{
+                                height: isPlaying ? `${Math.max(20, (h * ((bIdx % 3) + 1)) % 100)}%` : `${h * 0.4}%`,
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] text-slate-400">
+                      <span>{media.description || media.modelUsed}</span>
+                      <span className="font-mono text-[10px] text-cyan-400">
+                        {media.targetPath || 'D:\\OllamaKnowledge\\media\\'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              }
+
+              if (media.type === 'video') {
+                return (
+                  <div
+                    key={media.id}
+                    className="rounded-2xl border border-slate-800 bg-slate-950 overflow-hidden shadow-lg p-4 space-y-3"
+                  >
+                    <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-semibold text-[10px] border border-purple-500/30">
+                          VIDEO &amp; STORYBOARD
+                        </span>
+                        <span className="font-semibold text-slate-200">{media.title}</span>
+                      </div>
+
+                      <a
+                        href={media.url}
+                        download={media.downloadFilename || 'video_storyboard.json'}
+                        className="px-2.5 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-[11px] font-medium flex items-center gap-1 transition"
+                      >
+                        <Download className="w-3 h-3" />
+                        <span>Storyboard-Paket herunterladen</span>
+                      </a>
+                    </div>
+
+                    {/* Interactive Motion Video Stage */}
+                    <div className="relative rounded-xl border border-slate-800 overflow-hidden bg-slate-900 aspect-video flex flex-col justify-between p-4 shadow-inner">
+                      {media.thumbnailUrl && (
+                        <img
+                          src={media.thumbnailUrl}
+                          alt="Video Scene"
+                          className="absolute inset-0 w-full h-full object-cover opacity-50 filter blur-[1px]"
+                        />
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent" />
+
+                      <div className="relative z-10 flex items-center justify-between">
+                        <span className="px-2.5 py-0.5 rounded-full bg-black/60 border border-white/20 text-purple-200 text-[10px] font-mono">
+                          Szene {activeVideoScene + 1} von 4 • 1080p Motion
+                        </span>
+                        <span className="px-2 py-0.5 rounded bg-purple-950/80 border border-purple-500/40 text-purple-300 text-[10px] font-medium">
+                          12s Timeline
+                        </span>
+                      </div>
+
+                      {/* Subtitle & Direction Center Box */}
+                      <div className="relative z-10 p-3 rounded-xl bg-black/70 border border-white/10 backdrop-blur-md text-center space-y-1 my-auto max-w-lg mx-auto">
+                        <p className="text-xs font-semibold text-white">
+                          {media.subtitles && media.subtitles[activeVideoScene]
+                            ? media.subtitles[activeVideoScene]
+                            : media.promptUsed}
+                        </p>
+                        <p className="text-[10px] text-cyan-300 font-mono">
+                          Kamera: {activeVideoScene === 0 ? 'Cinematic Pan In' : activeVideoScene === 1 ? 'Dynamic Lateral Tracking' : activeVideoScene === 2 ? 'Elevation Aerial' : 'Accent Fade-Out'}
+                        </p>
+                      </div>
+
+                      {/* Scene Step Switcher */}
+                      <div className="relative z-10 flex items-center justify-center gap-2 pt-2">
+                        {[0, 1, 2, 3].map((sIdx) => (
+                          <button
+                            key={sIdx}
+                            type="button"
+                            onClick={() => setActiveVideoScene(sIdx)}
+                            className={`px-3 py-1 rounded-lg text-xs font-mono transition cursor-pointer ${
+                              activeVideoScene === sIdx
+                                ? 'bg-purple-600 text-white font-bold shadow-md shadow-purple-950'
+                                : 'bg-black/60 text-slate-400 hover:text-slate-200 hover:bg-black/80'
+                            }`}
+                          >
+                            Szene {sIdx + 1}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] text-slate-400">
+                      <span>{media.description}</span>
+                      <span className="font-mono text-[10px] text-cyan-400">
+                        {media.targetPath || 'D:\\OllamaKnowledge\\media\\'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              }
+
+              // Data / Code File item
+              const isSnippetExpanded = expandedFileSnippet === media.id;
+              return (
+                <div
+                  key={media.id}
+                  className="rounded-2xl border border-slate-800 bg-slate-950 overflow-hidden shadow-lg p-4 space-y-3"
+                >
+                  <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-semibold text-[10px] border border-amber-500/30">
+                        {media.language?.toUpperCase() || 'DATEI'}
+                      </span>
+                      <span className="font-semibold text-slate-200">{media.title}</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {media.codeSnippet && (
+                        <button
+                          type="button"
+                          onClick={() => setExpandedFileSnippet(isSnippetExpanded ? null : media.id)}
+                          className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] flex items-center gap-1 transition cursor-pointer"
+                        >
+                          <Eye className="w-3 h-3 text-cyan-400" />
+                          <span>{isSnippetExpanded ? 'Vorschau schließen' : 'Inhalt ansehen'}</span>
+                        </button>
+                      )}
+                      <a
+                        href={media.url}
+                        download={media.downloadFilename || 'export_data.csv'}
+                        className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-medium flex items-center gap-1 transition"
+                      >
+                        <Download className="w-3 h-3" />
+                        <span>Datei herunterladen</span>
+                      </a>
+                    </div>
+                  </div>
+
+                  {isSnippetExpanded && media.codeSnippet && (
+                    <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 overflow-x-auto text-[12px] font-mono text-slate-200 leading-relaxed max-h-60">
+                      <pre>{media.codeSnippet}</pre>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between text-[11px] text-slate-400">
+                    <span>{media.description || 'Generierter Export'}</span>
+                    <span className="font-mono text-[10px] text-cyan-400">
+                      {media.targetPath || 'D:\\OllamaKnowledge\\files\\'}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen Image Zoom Modal for Assistant Media */}
+      {zoomedImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-4"
+          onClick={() => setZoomedImage(null)}
+        >
+          <div className="relative max-w-5xl max-h-[90vh] flex flex-col items-center">
+            <img
+              src={zoomedImage.url}
+              alt={zoomedImage.title}
+              className="max-w-full max-h-[82vh] rounded-xl object-contain shadow-2xl border border-slate-700"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <div className="flex items-center justify-between w-full mt-3 px-2 text-slate-300 text-sm">
+              <span className="font-medium truncate">{zoomedImage.title}</span>
+              <div className="flex items-center gap-2">
+                <a
+                  href={zoomedImage.url}
+                  download={zoomedImage.title || 'image.png'}
+                  className="px-3 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-medium text-xs flex items-center gap-1.5 transition"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setZoomedImage(null)}
+                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
