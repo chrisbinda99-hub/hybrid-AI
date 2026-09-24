@@ -34,32 +34,41 @@ function normalizeMarkdownContent(content: string): string {
   let normalized = content.replace(/\|\s*\|\s*(?=[^|\n]*\|)/g, '|\n|');
   normalized = normalized.replace(/\|\s*\|\s*(:?-+:?)/g, '|\n| $1');
   normalized = normalized.replace(/\|\s*\|/g, '|\n|');
+  // Ensure fenced code blocks are separated from preceding text by an empty line
+  normalized = normalized.replace(/([^\n])\n(```[a-zA-Z0-9_-]*)/g, '$1\n\n$2');
   return normalized;
 }
 
-const CodeBlock = ({ inline, className, children, ...props }: any) => {
-  const [copied, setCopied] = useState(false);
-  const codeString = String(children).replace(/\n$/, '');
+function extractTextFromChildren(node: any): string {
+  if (node === null || node === undefined) return '';
+  if (typeof node === 'string') return node;
+  if (typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(extractTextFromChildren).join('');
+  if (React.isValidElement(node) && (node.props as any)?.children) {
+    return extractTextFromChildren((node.props as any).children);
+  }
+  return '';
+}
 
-  const match = /language-(\w+)/.exec(className || '');
+const PreBlock = ({ children, ...props }: any) => {
+  const [copied, setCopied] = useState(false);
+
+  // In react-markdown v10, pre wraps a code element: <pre><code className="language-xyz">...</code></pre>
+  const isCodeElement = React.isValidElement(children);
+  const codeProps: any = isCodeElement ? children.props : {};
+  const className = codeProps?.className || props?.className || '';
+  const match = /language-([a-zA-Z0-9_-]+)/.exec(className);
   const language = match ? match[1] : '';
+  const rawCode = extractTextFromChildren(codeProps?.children ?? children).replace(/\n$/, '');
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(codeString);
+    navigator.clipboard.writeText(rawCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  if (inline) {
-    return (
-      <code className="px-1.5 py-0.5 rounded bg-slate-800 text-cyan-300 font-mono text-[13px] border border-slate-700/60" {...props}>
-        {children}
-      </code>
-    );
-  }
-
   return (
-    <div className="relative my-3 rounded-xl overflow-hidden border border-slate-800 bg-slate-950 shadow-md">
+    <div className="relative my-3.5 rounded-xl overflow-hidden border border-slate-800 bg-slate-950 shadow-md">
       <div className="flex items-center justify-between px-3.5 py-1.5 bg-slate-900 border-b border-slate-800 text-[11px] font-mono text-slate-400">
         <span className="uppercase text-cyan-400 font-semibold">{language || 'Code'}</span>
         <button
@@ -73,7 +82,7 @@ const CodeBlock = ({ inline, className, children, ...props }: any) => {
         </button>
       </div>
       <pre className="p-4 overflow-x-auto text-[13px] sm:text-sm font-mono text-slate-200 leading-relaxed">
-        <code>{children}</code>
+        <code className={className}>{rawCode}</code>
       </pre>
     </div>
   );
@@ -110,15 +119,25 @@ const createMarkdownComponents = (fontSize: 'normal' | 'large') => ({
       {children}
     </h3>
   ),
+  h4: ({ children, ...props }: any) => (
+    <h4
+      className={`font-semibold text-slate-200 mt-3 mb-1 ${
+        fontSize === 'large' ? 'text-base sm:text-lg' : 'text-sm sm:text-base'
+      }`}
+      {...props}
+    >
+      {children}
+    </h4>
+  ),
   p: ({ children, ...props }: any) => (
-    <p
+    <div
       className={`my-2.5 leading-[1.75] text-slate-200 ${
         fontSize === 'large' ? 'text-base sm:text-lg' : 'text-[15px] sm:text-base'
       }`}
       {...props}
     >
       {children}
-    </p>
+    </div>
   ),
   ul: ({ children, ...props }: any) => (
     <ul className="list-disc list-outside ml-5 my-2.5 space-y-1.5 text-slate-200" {...props}>
@@ -148,6 +167,7 @@ const createMarkdownComponents = (fontSize: 'normal' | 'large') => ({
       {children}
     </blockquote>
   ),
+  hr: (props: any) => <hr className="my-4 border-slate-800" {...props} />,
   table: ({ children, ...props }: any) => (
     <div className="overflow-x-auto my-3.5 rounded-xl border border-slate-700/80 bg-slate-950/70 shadow-sm">
       <table className="w-full text-left border-collapse text-xs sm:text-sm text-slate-200" {...props}>
@@ -180,7 +200,29 @@ const createMarkdownComponents = (fontSize: 'normal' | 'large') => ({
       {children}
     </td>
   ),
-  code: CodeBlock,
+  pre: PreBlock,
+  code: ({ children, className, ...props }: any) => {
+    const rawText = extractTextFromChildren(children);
+    const isMultiLine = rawText.includes('\n');
+    const hasLanguage = Boolean(className && /language-/.test(className));
+
+    if (isMultiLine || hasLanguage) {
+      return (
+        <PreBlock {...props} className={className}>
+          {children}
+        </PreBlock>
+      );
+    }
+
+    return (
+      <code
+        className={`px-1.5 py-0.5 rounded bg-slate-800 text-cyan-300 font-mono text-[13px] border border-slate-700/60 ${className || ''}`}
+        {...props}
+      >
+        {children}
+      </code>
+    );
+  },
 });
 
 export const ChatMessageItem: React.FC<Props> = ({ message, fontSize = 'normal' }) => {
@@ -208,13 +250,13 @@ export const ChatMessageItem: React.FC<Props> = ({ message, fontSize = 'normal' 
             <span>•</span>
             <span>{message.timestamp}</span>
           </div>
-          <p
+          <div
             className={`whitespace-pre-wrap leading-relaxed ${
               fontSize === 'large' ? 'text-base sm:text-lg' : 'text-[15px] sm:text-base'
             }`}
           >
             {message.content}
-          </p>
+          </div>
         </div>
       </div>
     );
