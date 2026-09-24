@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Gemini AI Assistant - Mobile</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #0b0f19;
+      color: #f1f5f9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      padding: 16px;
+      background: #111827;
+      border-bottom: 1px solid #1f2937;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .badge {
+      background: #2563eb;
+      color: white;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      text-transform: uppercase;
+    }
+    .safe-badge {
+      background: #059669;
+      color: white;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 9999px;
+    }
+    .main {
+      flex: 1;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 16px;
+    }
+    h2 { font-size: 18px; margin-bottom: 8px; color: #60a5fa; }
+    p { font-size: 14px; line-height: 1.5; color: #94a3b8; }
+    .btn {
+      display: inline-block;
+      width: 100%;
+      text-align: center;
+      background: #2563eb;
+      color: white;
+      padding: 14px;
+      border-radius: 8px;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+      border: none;
+      font-size: 15px;
+      margin-top: 12px;
+    }
+    .btn:active { background: #1d4ed8; }
+    .specs-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .spec-item {
+      background: #0f172a;
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid #1e293b;
+    }
+    .spec-label { font-size: 11px; color: #64748b; text-transform: uppercase; }
+    .spec-val { font-size: 13px; font-weight: 600; color: #38bdf8; margin-top: 2px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div style="width:36px; height:36px; border-radius:8px; background:#2563eb; display:flex; align-items:center; justify-content:center; font-weight:bold;">AI</div>
+    <div>
+      <h1 style="font-size: 16px; font-weight: 700;">Gemini AI Studio Mobile</h1>
+      <div style="display:flex; gap:6px; margin-top:3px;">
+        <span class="safe-badge">✓ Kein Root nötig</span>
+        <span class="badge">v1.0.0 APK</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="main">
+    <div class="card">
+      <h2>Mobile Android System</h2>
+      <p>Diese App wurde als native Android-APK kompiliert. Sie benötigt keinerlei Root-Rechte und läuft mit maximaler Systemsicherheit in der Standard-Android-Sandbox.</p>
+      
+      <div class="specs-grid">
+        <div class="spec-item">
+          <div class="spec-label">Android OS</div>
+          <div class="spec-val">5.0 bis 15+ (API 21-35)</div>
+        </div>
+        <div class="spec-item">
+          <div class="spec-label">Root Status</div>
+          <div class="spec-val" style="color: #34d399;">Nicht erforderlich (100% sicher)</div>
+        </div>
+        <div class="spec-item">
+          <div class="spec-label">Architektur</div>
+          <div class="spec-val">ARM64, ARMv7, x86_64</div>
+        </div>
+        <div class="spec-item">
+          <div class="spec-label">Cloud Resilienz</div>
+          <div class="spec-val">Gemini 3.5 &amp; Lokaler Vault</div>
+        </div>
+      </div>
+
+      <button class="btn" onclick="retryConnection()">Mit Cloud-System verbinden</button>
+    </div>
+
+    <div class="card">
+      <h2>Live Diagnose &amp; Status</h2>
+      <p id="netStatus" style="color: #38bdf8;">Status: Initialisiert und bereit.</p>
+      <div id="log" style="font-family:monospace; font-size:12px; color:#a5f3fc; background:#0b0f19; padding:10px; border-radius:6px; margin-top:10px; max-height:140px; overflow-y:auto;">
+        [System] Native Android WebView initialisiert.<br>
+        [System] Keine Root-Berechtigungen gefordert.<br>
+        [System] Standard-Sicherheits-Sandbox aktiv.<br>
+        [System] Bereit für Gemini AI Studio.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function retryConnection() {
+      const log = document.getElementById('log');
+      const netStatus = document.getElementById('netStatus');
+      netStatus.textContent = "Verbindung wird aufgebaut...";
+      log.innerHTML += "<br>[Netzwerk] Versuche Cloud-Verbindung zu laden...";
+      window.location.href = "https://ais-dev-w3t5uz3x7dtztbghvqcw4x-703552349210.europe-west2.run.app";
+    }
+
+    window.addEventListener('online', () => {
+      document.getElementById('netStatus').textContent = "Online! Cloud wird geladen...";
+      setTimeout(retryConnection, 1000);
+    });
+  </script>
+</body>
+</html>

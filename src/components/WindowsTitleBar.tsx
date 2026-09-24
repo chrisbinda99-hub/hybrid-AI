@@ -12,6 +12,7 @@ import {
   Activity,
   AppWindow,
   Maximize2,
+  Smartphone,
 } from 'lucide-react';
 
 interface Props {
@@ -24,6 +25,7 @@ interface Props {
   canInstallPwa: boolean;
   onOpenDriveD?: () => void;
   onOpenDiagnostics?: () => void;
+  onOpenAndroidApk?: () => void;
 }
 
 export const WindowsTitleBar: React.FC<Props> = ({
@@ -36,6 +38,7 @@ export const WindowsTitleBar: React.FC<Props> = ({
   canInstallPwa,
   onOpenDriveD,
   onOpenDiagnostics,
+  onOpenAndroidApk,
 }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isDedicatedWindow, setIsDedicatedWindow] = useState(false);
@@ -200,6 +203,18 @@ export const WindowsTitleBar: React.FC<Props> = ({
           <Download className="w-3 h-3" />
           <span>Windows App (.ZIP)</span>
         </button>
+
+        {onOpenAndroidApk && (
+          <button
+            onClick={onOpenAndroidApk}
+            id="titlebar-open-android-apk-btn"
+            className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] bg-gradient-to-r from-emerald-600 via-teal-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white rounded font-medium shadow-sm transition-all cursor-pointer border border-emerald-400/40"
+            title="Android APK herunterladen & prüfen (100% ohne Root)"
+          >
+            <Smartphone className="w-3.5 h-3.5 text-emerald-200" />
+            <span className="font-semibold">📱 Android APK (No Root)</span>
+          </button>
+        )}
 
         {/* Windows 11 simulated window controls */}
         <div className="flex items-center ml-2 border-l border-slate-800 pl-1">

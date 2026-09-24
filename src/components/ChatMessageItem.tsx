@@ -18,6 +18,11 @@ import {
   ShieldCheck,
   ShieldAlert,
   Zap,
+  Smartphone,
+  Download,
+  RefreshCw,
+  CheckCircle2,
+  ExternalLink,
 } from 'lucide-react';
 import { ChatMessage } from '../types';
 
@@ -52,6 +57,9 @@ function extractTextFromChildren(node: any): string {
 
 const PreBlock = ({ children, ...props }: any) => {
   const [copied, setCopied] = useState(false);
+  const [showApkMenu, setShowApkMenu] = useState(false);
+  const [buildingApk, setBuildingApk] = useState(false);
+  const [apkFeedback, setApkFeedback] = useState<string | null>(null);
 
   // In react-markdown v10, pre wraps a code element: <pre><code className="language-xyz">...</code></pre>
   const isCodeElement = React.isValidElement(children);
@@ -67,20 +75,149 @@ const PreBlock = ({ children, ...props }: any) => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleOpenApkModal = () => {
+    setShowApkMenu(false);
+    window.dispatchEvent(new CustomEvent('open-android-apk-modal'));
+  };
+
+  const handleBuildIntoApk = async () => {
+    setShowApkMenu(false);
+    setBuildingApk(true);
+    setApkFeedback('Kompiliere AOSP DEX & binde Code in APK ein...');
+    try {
+      const res = await fetch('/api/apk/embed-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: rawCode,
+          language: language || 'text',
+          title: `Code-Menü Export (${language || 'Code'})`,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setApkFeedback('Erfolgreich gebaut! APK-Download startet...');
+        // trigger direct download
+        const a = document.createElement('a');
+        a.href = data.downloadUrl || '/downloads/gemini-ai-assistant.apk';
+        a.download = data.fileName || 'gemini-ai-assistant.apk';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => setApkFeedback(null), 4000);
+      } else {
+        setApkFeedback('Fehler beim Bauen: ' + (data.error || 'Unbekannt'));
+        setTimeout(() => setApkFeedback(null), 4000);
+      }
+    } catch (err: any) {
+      setApkFeedback('Verbindungsfehler: ' + err.message);
+      setTimeout(() => setApkFeedback(null), 4000);
+    } finally {
+      setBuildingApk(false);
+    }
+  };
+
   return (
     <div className="relative my-3.5 rounded-xl overflow-hidden border border-slate-800 bg-slate-950 shadow-md">
+      {/* Code-Menü Header */}
       <div className="flex items-center justify-between px-3.5 py-1.5 bg-slate-900 border-b border-slate-800 text-[11px] font-mono text-slate-400">
-        <span className="uppercase text-cyan-400 font-semibold">{language || 'Code'}</span>
-        <button
-          onClick={handleCopy}
-          type="button"
-          className="flex items-center gap-1 text-slate-400 hover:text-slate-100 transition cursor-pointer"
-          title="Code kopieren"
-        >
-          {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-          <span>{copied ? 'Kopiert' : 'Kopieren'}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <span className="uppercase text-cyan-400 font-semibold">{language || 'Code'}</span>
+          <span className="text-slate-600 hidden sm:inline">•</span>
+          <span className="text-[10px] text-slate-500 font-sans uppercase tracking-wider hidden sm:inline">
+            Code-Menü
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1.5 relative">
+          {/* APK Menu Button */}
+          <div className="relative">
+            <button
+              onClick={() => setShowApkMenu((prev) => !prev)}
+              type="button"
+              disabled={buildingApk}
+              className="flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 font-sans text-[11px] font-medium transition cursor-pointer disabled:opacity-50"
+              title="Android APK Menü (Herunterladen, Bauen, QR-Code)"
+            >
+              <Smartphone className={`w-3 h-3 text-emerald-400 ${buildingApk ? 'animate-bounce' : ''}`} />
+              <span className="hidden xs:inline">*.apk</span>
+              <ChevronDown className="w-2.5 h-2.5 opacity-70" />
+            </button>
+
+            {/* Dropdown in Code-Menü */}
+            {showApkMenu && (
+              <div className="absolute right-0 top-full mt-1.5 w-64 p-1.5 rounded-xl bg-slate-900 border border-emerald-500/40 shadow-2xl z-30 font-sans space-y-1 animate-in fade-in zoom-in-95 duration-100">
+                <div className="px-2.5 py-1 border-b border-slate-800 text-[10px] text-slate-400 font-semibold flex items-center justify-between">
+                  <span>Android APK Aktionen</span>
+                  <span className="text-emerald-400">No Root</span>
+                </div>
+
+                <a
+                  href="/downloads/gemini-ai-assistant.apk"
+                  download="gemini-ai-assistant.apk"
+                  onClick={() => setShowApkMenu(false)}
+                  className="flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-emerald-500/10 text-slate-200 hover:text-emerald-300 text-xs transition block cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <div className="text-left">
+                    <div className="font-semibold text-white">*.apk herunterladen</div>
+                    <div className="text-[10px] text-slate-400">Signiertes Release-Paket (~16.5 KB)</div>
+                  </div>
+                </a>
+
+                <button
+                  type="button"
+                  onClick={handleBuildIntoApk}
+                  className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-cyan-500/10 text-slate-200 hover:text-cyan-300 text-xs transition text-left cursor-pointer"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                  <div>
+                    <div className="font-semibold text-white">Code in *.apk bauen</div>
+                    <div className="text-[10px] text-slate-400">Snippet in APK-Assets einbetten</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleOpenApkModal}
+                  className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-purple-500/10 text-slate-200 hover:text-purple-300 text-xs transition text-left cursor-pointer"
+                >
+                  <ExternalLink className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                  <div>
+                    <div className="font-semibold text-white">APK-Details &amp; QR-Code</div>
+                    <div className="text-[10px] text-slate-400">Prüfmatrix &amp; Mobile Scanner</div>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Copy Button */}
+          <button
+            onClick={handleCopy}
+            type="button"
+            className="flex items-center gap-1 px-2 py-0.5 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-100 transition cursor-pointer font-sans text-[11px]"
+            title="Code kopieren"
+          >
+            {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+            <span>{copied ? 'Kopiert' : 'Kopieren'}</span>
+          </button>
+        </div>
       </div>
+
+      {/* Status banner when building APK */}
+      {apkFeedback && (
+        <div className="px-3.5 py-1.5 bg-emerald-950/80 border-b border-emerald-500/40 text-[11px] text-emerald-300 flex items-center gap-2 font-sans animate-in fade-in">
+          {buildingApk ? (
+            <RefreshCw className="w-3 h-3 text-emerald-400 animate-spin" />
+          ) : (
+            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+          )}
+          <span>{apkFeedback}</span>
+        </div>
+      )}
+
+      {/* Actual Code content */}
       <pre className="p-4 overflow-x-auto text-[13px] sm:text-sm font-mono text-slate-200 leading-relaxed">
         <code className={className}>{rawCode}</code>
       </pre>

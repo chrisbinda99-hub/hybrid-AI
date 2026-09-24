@@ -2,9 +2,9 @@ import { GeminiModelInfo } from '../types';
 
 export const GEMINI_MODELS: GeminiModelInfo[] = [
   {
-    id: 'gemini-3.6-flash',
-    name: 'Gemini 3.6 Flash',
-    description: 'Offiziell empfohlenes Hochleistungsmodell mit maximaler Stabilität, Durchsatz & Zuverlässigkeit.',
+    id: 'gemini-3.5-flash',
+    name: 'Gemini 3.5 Flash',
+    description: 'Offiziell empfohlenes Hochleistungsmodell mit maximaler Stabilität, Durchsatz & Verfügbarkeit.',
     isDefault: true,
     supportsThinking: true,
     recommendedTier: 'Recommended & Stable',
@@ -12,34 +12,34 @@ export const GEMINI_MODELS: GeminiModelInfo[] = [
   {
     id: 'gemini-3.8-flash',
     name: 'Gemini 3.8 Flash',
-    description: 'Neueste Modelliteration. Bei temporärer Last greift automatisch die Ausfallsicherung auf 3.6 Flash.',
+    description: 'Neueste Modelliteration mit High Thinking. Bei Lastspitzen greift nahtloser Resilienz-Fallback.',
     isDefault: false,
     supportsThinking: true,
-    recommendedTier: 'Next-Gen Preview',
-  },
-  {
-    id: 'gemini-3.1-pro-preview',
-    name: 'Gemini 3.1 Pro (High Thinking)',
-    description: 'Höchste Denkstufe (High Thinking) für komplexe Programmierung & mathematische Beweise.',
-    isDefault: false,
-    supportsThinking: true,
-    recommendedTier: 'Advanced Reasoning',
+    recommendedTier: 'Next-Gen Flagship',
   },
   {
     id: 'gemini-3.1-flash-lite',
     name: 'Gemini 3.1 Flash Lite',
-    description: 'Niedrigste Latenz für sofortige Verifikation und Triage.',
+    description: 'Minimale Latenz und sparsame Token-Kosten für Echtzeit-Triage & Routing.',
     isDefault: false,
     supportsThinking: false,
     recommendedTier: 'Ultra Low Latency',
   },
   {
-    id: 'gemini-3.5-flash',
-    name: 'Gemini 3.5 Flash',
-    description: 'Schnelle multimodale Inferenz mit hervorragendem Kontextverständnis.',
+    id: 'gemini-3.1-pro-preview',
+    name: 'Gemini 3.1 Pro (High Thinking)',
+    description: 'Höchste Denkstufe für komplexe Programmierung, mathematische Logik & Deep Reasoning.',
     isDefault: false,
-    supportsThinking: false,
-    recommendedTier: 'Fast & Versatile',
+    supportsThinking: true,
+    recommendedTier: 'Advanced Reasoning',
+  },
+  {
+    id: 'gemini-flash-latest',
+    name: 'Gemini Flash Latest',
+    description: 'Automatisches Cloud-Routing zur jeweils aktuellsten stabilen Inferenz-Instanz.',
+    isDefault: false,
+    supportsThinking: true,
+    recommendedTier: 'Auto-Routing',
   },
 ];
 

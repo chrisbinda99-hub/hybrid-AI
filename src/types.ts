@@ -141,6 +141,45 @@ export interface Loihi2Status {
 
 export type KevQuestionType = 'boolean' | 'choice' | 'score';
 
+export type KevModelId = 'kev-0.8b' | 'kev-4b' | 'kev-9b' | 'qwen2.5:0.5b';
+
+export interface KevFamilyMember {
+  id: KevModelId;
+  name: string;
+  baseArchitecture: string; // e.g. "Qwen3.5-0.8B", "Qwen3.5-4B", "Qwen3.5-9B"
+  parameters: string;       // "0.8B", "4B", "9B"
+  latencyMs: number;        // 8ms, 22ms, 48ms
+  vramMb: number;           // 620MB, 2400MB, 5800MB
+  targetProfile: string;    // "Edge & Sub-10ms Gatekeeper", "Balanced Precision Head", "Deep Governance & Policy Head"
+  strengths: string[];
+  isDefault?: boolean;
+}
+
+export interface KevBenchmarkItemResult {
+  modelId: KevModelId;
+  modelName: string;
+  baseArchitecture: string;
+  latencyMs: number;
+  vramMb: number;
+  engine: 'ollama' | 'gemini' | 'hybrid';
+  confidence: number;
+  recommendedMode: HybridMode;
+  privacyScore: number;
+  complexityScore: number;
+  entropy: number;
+  reason: string;
+  requiresDriveD: boolean;
+  requiresThinking: boolean;
+}
+
+export interface KevFamilyBenchmarkResult {
+  prompt: string;
+  timestamp: string;
+  results: KevBenchmarkItemResult[];
+  fastestModel: string;
+  highestConfidenceModel: string;
+}
+
 export interface KevQuestion {
   id: string;
   title: string;
@@ -168,8 +207,8 @@ export interface KevSystemOneResponse {
 }
 
 export interface QwenDeciderEvaluation {
-  model: string;              // e.g. "kev-0.5b (Qwen-LoRA v0.1.0)" or "qwen2.5:0.5b"
-  latencyMs: number;          // e.g. 14ms
+  model: string;              // e.g. "kev-0.8b (Qwen3.5-0.8B)" or "kev-4b (Qwen3.5-4B)" or "kev-9b (Qwen3.5-9B)"
+  latencyMs: number;          // e.g. 7.4ms
   engine: 'ollama' | 'gemini' | 'hybrid';
   confidence: number;         // 0.0 - 1.0 (e.g. 0.98)
   reason: string;
@@ -179,9 +218,11 @@ export interface QwenDeciderEvaluation {
   requiresDriveDKnowledge: boolean;
   requiresThinking: boolean;
   latentFeatures?: string[];
-  // Kev Decision Engine extensions (Jared Palmer / TypeSafe System One v0.1.0)
+  // Kev Decision Engine extensions (Jared Palmer / TypeSafe System One v0.1.0 on Qwen3.5)
   kevVersion?: string;
   isKevModel?: boolean;
+  qwenBaseArchitecture?: string; // "Qwen3.5-0.8B", "Qwen3.5-4B", "Qwen3.5-9B"
+  entropy?: number;              // Latent entropy (0.01 - 1.0)
   calibratedProbabilities?: {
     engine?: Record<string, number>;
     privacy?: Record<string, number>;

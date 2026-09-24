@@ -13,6 +13,7 @@ import { PromptInputBar } from './components/PromptInputBar';
 import { DesktopPackagerModal } from './components/DesktopPackagerModal';
 import { DriveDKnowledgeModal } from './components/DriveDKnowledgeModal';
 import { SystemDiagnosticModal } from './components/SystemDiagnosticModal';
+import { AndroidApkModal } from './components/AndroidApkModal';
 import { usePWAInstall } from './hooks/usePWAInstall';
 import {
   ChatMessage,
@@ -104,7 +105,7 @@ export default function App() {
   const [activeOllamaModel, setActiveOllamaModel] = useState<string>('llama3.2:3b');
 
   // Gemini State
-  const [activeGeminiModel, setActiveGeminiModel] = useState<string>('gemini-3.6-flash');
+  const [activeGeminiModel, setActiveGeminiModel] = useState<string>('gemini-3.5-flash');
   const [enableThinking, setEnableThinking] = useState<boolean>(true);
 
   // Drive D Knowledge Vault State
@@ -141,6 +142,7 @@ export default function App() {
 
   // Modal State
   const [isPackagerOpen, setIsPackagerOpen] = useState(false);
+  const [isAndroidApkOpen, setIsAndroidApkOpen] = useState(false);
 
   // Dedicated App Window Mode
   const [isDismissedWindowBanner, setIsDismissedWindowBanner] = useState(() => {
@@ -172,10 +174,16 @@ export default function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Initial Scan on Mount & Drive D status
+  // Initial Scan on Mount & Drive D status & APK modal event
   useEffect(() => {
     scanOllama();
     refreshDriveDStatus();
+
+    const handleOpenApk = () => setIsAndroidApkOpen(true);
+    window.addEventListener('open-android-apk-modal', handleOpenApk);
+    return () => {
+      window.removeEventListener('open-android-apk-modal', handleOpenApk);
+    };
   }, []);
 
   const refreshDriveDStatus = async () => {
@@ -623,6 +631,7 @@ export default function App() {
         canInstallPwa={isInstallable}
         onOpenDriveD={() => setIsDriveDOpen(true)}
         onOpenDiagnostics={() => setIsDiagnosticOpen(true)}
+        onOpenAndroidApk={() => setIsAndroidApkOpen(true)}
       />
 
       {/* Dedicated Window Notification Banner (if running in iframe/preview) */}
@@ -695,6 +704,7 @@ export default function App() {
             setIsDiagnosticOpen(true);
           }}
           onOpenPackager={() => setIsPackagerOpen(true)}
+          onOpenAndroidApk={() => setIsAndroidApkOpen(true)}
           isChatFocused={isChatFocused}
           onToggleChatFocus={toggleChatFocus}
           chatFontSize={chatFontSize}
@@ -897,6 +907,7 @@ export default function App() {
         onClose={() => setIsPackagerOpen(false)}
         onInstallPwa={installPwa}
         canInstallPwa={isInstallable}
+        onOpenAndroidApk={() => setIsAndroidApkOpen(true)}
       />
 
       {/* 6. Drive D Knowledge Vault Modal */}
@@ -932,6 +943,12 @@ export default function App() {
           }
           handleSendMessage(promptText);
         }}
+      />
+
+      {/* 8. Android APK (No Root) Modal */}
+      <AndroidApkModal
+        isOpen={isAndroidApkOpen}
+        onClose={() => setIsAndroidApkOpen(false)}
       />
     </div>
   );

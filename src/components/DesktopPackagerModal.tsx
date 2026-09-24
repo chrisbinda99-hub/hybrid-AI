@@ -17,6 +17,7 @@ import {
   Sparkles,
   Layers,
   ArrowRight,
+  Smartphone,
 } from 'lucide-react';
 
 interface Props {
@@ -24,6 +25,7 @@ interface Props {
   onClose: () => void;
   onInstallPwa: () => void;
   canInstallPwa: boolean;
+  onOpenAndroidApk?: () => void;
 }
 
 export const DesktopPackagerModal: React.FC<Props> = ({
@@ -31,6 +33,7 @@ export const DesktopPackagerModal: React.FC<Props> = ({
   onClose,
   onInstallPwa,
   canInstallPwa,
+  onOpenAndroidApk,
 }) => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -319,6 +322,54 @@ export const DesktopPackagerModal: React.FC<Props> = ({
             <p className="text-[11px] text-slate-400">
               Erstellt sofort ohne Download eine saubere Verknüpfung auf Ihrem Windows 11 Desktop.
             </p>
+          </div>
+
+          {/* METHODE 4: NATIVE ANDROID SYSTEMPAKET (*.APK • 100% OHNE ROOT) */}
+          <div className="bg-gradient-to-br from-emerald-950/90 via-slate-950/90 to-teal-950/80 border border-emerald-500/60 rounded-xl p-4.5 relative overflow-hidden shadow-xl shadow-emerald-950/40 space-y-3">
+            <div className="absolute top-0 right-0 bg-emerald-500/20 text-emerald-300 text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-bl-lg border-l border-b border-emerald-500/30">
+              Android Mobilpaket • No Root
+            </div>
+
+            <div className="flex items-start gap-3.5">
+              <div className="p-2.5 rounded-lg bg-emerald-900/60 border border-emerald-700/60 text-emerald-400 shrink-0 mt-0.5">
+                <Smartphone className="w-6 h-6" />
+              </div>
+              <div className="space-y-1.5 flex-1 pr-10">
+                <div className="flex items-center gap-2">
+                  <h4 className="font-bold text-slate-100 text-sm">
+                    Android APK (gemini-ai-assistant.apk)
+                  </h4>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-900/50 text-emerald-300 border border-emerald-800/60">
+                    ~16.5 KB • AOSP Signiert
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Offizielle native Android-Installationsdatei (.apk) für Smartphones &amp; Tablets ab Android 5.0 bis Android 15+. <strong>100% ohne Root-Rechte</strong>, Knox- &amp; SafetyNet-konform.
+                </p>
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <a
+                    href="/downloads/gemini-ai-assistant.apk"
+                    download="gemini-ai-assistant.apk"
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition cursor-pointer shadow-md shadow-emerald-600/20"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>*.apk herunterladen</span>
+                  </a>
+                  {onOpenAndroidApk && (
+                    <button
+                      onClick={() => {
+                        onClose();
+                        onOpenAndroidApk();
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-300 text-xs font-medium border border-emerald-500/30 transition cursor-pointer"
+                    >
+                      <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>QR-Code &amp; Prüfbericht</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

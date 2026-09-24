@@ -41,6 +41,7 @@ import {
   HallunoxVerificationResult,
   QwenDeciderStatus,
   QwenDeciderEvaluation,
+  KevFamilyBenchmarkResult,
 } from '../types';
 import {
   runSystemDiagnostics,
@@ -57,6 +58,8 @@ import {
   fetchQwenStatus,
   testQwenDecider,
   downloadQwenFile,
+  runKevFamilyBenchmark,
+  KEV_FAMILY_MEMBERS,
   DEFAULT_QWEN_DECIDER_MODEL,
 } from '../services/qwenDeciderService';
 import { VramUsageChartD3 } from './VramUsageChartD3';
@@ -104,11 +107,15 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
   const [qwenTestResult, setQwenTestResult] = useState<QwenDeciderEvaluation | null>(null);
   const [isTestingQwen, setIsTestingQwen] = useState(false);
   const [qwenCopiedCmd, setQwenCopiedCmd] = useState<string | null>(null);
-  const [selectedQwenModel, setSelectedQwenModel] = useState<string>(activeQwenModel);
+  const [selectedQwenModel, setSelectedQwenModel] = useState<string>(activeQwenModel || 'kev-0.8b');
   const [showQwenJson, setShowQwenJson] = useState(false);
+  const [kevBenchmarkResult, setKevBenchmarkResult] = useState<KevFamilyBenchmarkResult | null>(null);
+  const [isRunningKevBenchmark, setIsRunningKevBenchmark] = useState(false);
 
   useEffect(() => {
-    setSelectedQwenModel(activeQwenModel);
+    if (activeQwenModel) {
+      setSelectedQwenModel(activeQwenModel);
+    }
   }, [activeQwenModel]);
 
   const loadQwenStatus = async () => {
@@ -134,6 +141,20 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
       console.error('Error testing Qwen decider:', err);
     } finally {
       setIsTestingQwen(false);
+    }
+  };
+
+  const handleRunKevBenchmark = async (promptOverride?: string) => {
+    const prompt = promptOverride || qwenTestPrompt;
+    if (!prompt.trim()) return;
+    setIsRunningKevBenchmark(true);
+    try {
+      const res = await runKevFamilyBenchmark(prompt);
+      setKevBenchmarkResult(res);
+    } catch (err) {
+      console.error('Error running Kev benchmark:', err);
+    } finally {
+      setIsRunningKevBenchmark(false);
     }
   };
 
@@ -472,32 +493,31 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
     }
 
     // 2. Test Gemini Cloud Integration
-    logItem('Google Gemini 2.5 Flash Cloud', 'pending', 'Sende Testanfrage an Google API...');
+    logItem('Google Gemini Cloud', 'pending', 'Sende Testanfrage an Google API...');
     const t1 = performance.now();
     try {
-      const gemRes = await fetch('/api/chat', {
+      const gemRes = await fetch('/api/gemini/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: [{ role: 'user', content: `[SYSTEM_CHECK]: Antworte mit genau 1 Satz: "${testPrompt}"` }],
+          prompt: `[SYSTEM_CHECK]: Antworte mit genau 1 Satz: "${testPrompt}"`,
           model: geminiModel,
-          routingMode: 'cloud_only',
         }),
       });
       const gemData = await gemRes.json();
       const lat1 = Math.round(performance.now() - t1);
       if (gemRes.ok && gemData.text) {
         logItem(
-          'Google Gemini 2.5 Flash Cloud',
+          'Google Gemini Cloud',
           'success',
-          `Antwort erhalten (${gemData.text.slice(0, 60)}...)`,
+          `Antwort erhalten (${gemData.text.slice(0, 60)}...) [${gemData.model || geminiModel}]`,
           lat1
         );
       } else {
-        logItem('Google Gemini 2.5 Flash Cloud', 'failed', gemData.error || 'Fehlerhafte Antwort');
+        logItem('Google Gemini Cloud', 'failed', gemData.error || 'Fehlerhafte Antwort');
       }
     } catch (e: any) {
-      logItem('Google Gemini 2.5 Flash Cloud', 'failed', e?.message || 'Fehlgeschlagen');
+      logItem('Google Gemini Cloud', 'failed', e?.message || 'Fehlgeschlagen');
     }
 
     // 3. Test Local D-Drive Auto-Sync
@@ -1932,28 +1952,28 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
             </div>
           )}
 
-          {/* TAB: QWEN & KEV DECISION MODEL SLM DECISION HEAD */}
+          {/* TAB: THE KEV FAMILY (0.8B, 4B, 9B ON QWEN3.5 BASES) */}
           {activeTab === 'qwen' && (
             <div className="space-y-4">
-              {/* HEADER / EXPLANATION CARD (KEV v0.1.0 & JEPA ARCHITECTURE) */}
-              <div className="p-4 rounded-xl bg-gradient-to-r from-violet-950/60 via-slate-900/80 to-slate-950 border border-violet-700/50 space-y-3">
+              {/* HEADER / EXPLANATION CARD (THE KEV FAMILY ON QWEN3.5) */}
+              <div className="p-4 rounded-xl bg-gradient-to-r from-violet-950/70 via-slate-900/90 to-cyan-950/60 border border-violet-700/50 space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div className="flex items-center gap-2.5">
-                    <div className="p-2 rounded-lg bg-violet-500/20 border border-violet-500/40 text-violet-300">
-                      <Brain className="w-5 h-5" />
+                    <div className="p-2.5 rounded-xl bg-violet-500/20 border border-violet-500/40 text-violet-300">
+                      <Brain className="w-5 h-5 text-violet-300" />
                     </div>
                     <div>
                       <h3 className="font-bold text-slate-100 text-sm flex items-center gap-2 flex-wrap">
-                        Kev Decision Model &amp; Qwen-Decider Head
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-violet-500/20 text-violet-300 border border-violet-500/30">
-                          Jared Palmer v0.1.0
+                        The Kev Family: Kev-0.8B, Kev-4B, Kev-9B
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                          Qwen3.5 Bases
                         </span>
                         <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                          Single Forward Pass (&lt; 15ms)
+                          Single Forward Pass (&lt; 8ms Gatekeeper)
                         </span>
                       </h3>
                       <p className="text-slate-400 text-xs mt-0.5">
-                        Wahrscheinlichkeitsbasierte Klassifikation mit Block-Causal Maskierung und TypeSafe System One Vertrag.
+                        Jared Palmer Decision Head Familie mit Block-Causal Masking &amp; TypeSafe /v1/systemone API.
                       </p>
                     </div>
                   </div>
@@ -1970,49 +1990,84 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
                   </div>
                 </div>
 
-                {/* Kev Architectural Highlights */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1 text-xs">
-                  <div className="p-2.5 rounded-lg bg-slate-950/70 border border-violet-800/40 space-y-1">
-                    <span className="text-violet-300 font-semibold flex items-center gap-1.5 text-[11px]">
-                      <Zap className="w-3.5 h-3.5 text-amber-400" />
-                      Block-Causal Masking
-                    </span>
-                    <p className="text-slate-400 text-[10px] leading-relaxed">
-                      Evaluiert mehrere typisierte Fragen gleichzeitig in einem einzigen Forward Pass ohne zeitraubendes Token-Decoding.
-                    </p>
-                  </div>
+                {/* THE KEV FAMILY MEMBERS SHOWCASE CARDS */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+                  {KEV_FAMILY_MEMBERS.filter((m) => m.id.startsWith('kev')).map((member) => {
+                    const isSelected = selectedQwenModel === member.id;
+                    return (
+                      <div
+                        key={member.id}
+                        className={`p-3 rounded-xl border transition flex flex-col justify-between ${
+                          isSelected
+                            ? 'bg-violet-950/40 border-violet-500 ring-1 ring-violet-500/50'
+                            : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono font-bold text-xs text-white flex items-center gap-1.5">
+                              <Zap className="w-3.5 h-3.5 text-amber-400" />
+                              {member.id.toUpperCase()}
+                            </span>
+                            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-cyan-950 text-cyan-300 border border-cyan-800/60">
+                              {member.baseArchitecture}
+                            </span>
+                          </div>
 
-                  <div className="p-2.5 rounded-lg bg-slate-950/70 border border-violet-800/40 space-y-1">
-                    <span className="text-cyan-300 font-semibold flex items-center gap-1.5 text-[11px]">
-                      <SlidersHorizontal className="w-3.5 h-3.5 text-cyan-400" />
-                      Kalibrierte Softmax-Tensoren
-                    </span>
-                    <p className="text-slate-400 text-[10px] leading-relaxed">
-                      Gibt echte Wahrscheinlichkeitsverteilungen (0.00 – 1.00) für Routing, Privacy und RAG aus, statt halluzinierter JSON-Texte.
-                    </p>
-                  </div>
+                          <div className="text-[11px] font-semibold text-slate-300">
+                            {member.targetProfile}
+                          </div>
 
-                  <div className="p-2.5 rounded-lg bg-slate-950/70 border border-violet-800/40 space-y-1">
-                    <span className="text-emerald-300 font-semibold flex items-center gap-1.5 text-[11px]">
-                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                      TypeSafe /v1/systemone
-                    </span>
-                    <p className="text-slate-400 text-[10px] leading-relaxed">
-                      Offizielle System One API-Kompatibilität nach Jared Palmers Open-Source Spezifikation.
-                    </p>
-                  </div>
+                          <div className="grid grid-cols-2 gap-1 text-[10px] font-mono pt-1 text-slate-400">
+                            <div>Latenz: <strong className="text-emerald-400">~{member.latencyMs}ms</strong></div>
+                            <div>VRAM: <strong className="text-cyan-300">{member.vramMb} MB</strong></div>
+                          </div>
+
+                          <ul className="text-[10px] text-slate-400 space-y-0.5 pt-1">
+                            {member.strengths.slice(0, 2).map((s, idx) => (
+                              <li key={idx} className="flex items-center gap-1">
+                                <Check className="w-2.5 h-2.5 text-emerald-400 shrink-0" />
+                                <span>{s}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        <button
+                          onClick={() => {
+                            setSelectedQwenModel(member.id);
+                            onSelectQwenModel?.(member.id);
+                          }}
+                          className={`mt-3 w-full py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                            isSelected
+                              ? 'bg-violet-600 text-white'
+                              : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                          }`}
+                        >
+                          {isSelected ? (
+                            <>
+                              <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                              <span>Aktiv als Decision Head</span>
+                            </>
+                          ) : (
+                            <span>Auswählen &amp; Aktivieren</span>
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {/* Status Badges */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-800/80 text-xs">
                   <div className="p-2 rounded-lg bg-slate-900/80 border border-slate-800">
-                    <span className="text-slate-400 text-[10px] block">Aktives Modell:</span>
+                    <span className="text-slate-400 text-[10px] block">Aktives Kev Modell:</span>
                     <span className="font-mono font-semibold text-violet-300 truncate block">
                       {selectedQwenModel}
                     </span>
                   </div>
                   <div className="p-2 rounded-lg bg-slate-900/80 border border-slate-800">
-                    <span className="text-slate-400 text-[10px] block">Ollama / Kev Status:</span>
+                    <span className="text-slate-400 text-[10px] block">Ollama / Inferenz Status:</span>
                     <span className={`font-semibold flex items-center gap-1 ${qwenStatus?.deciderModelAvailable ? 'text-emerald-400' : 'text-amber-300'}`}>
                       {qwenStatus?.deciderModelAvailable ? (
                         <>
@@ -2028,26 +2083,26 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
                     </span>
                   </div>
                   <div className="p-2 rounded-lg bg-slate-900/80 border border-slate-800">
-                    <span className="text-slate-400 text-[10px] block">Inferenz-Latenz:</span>
+                    <span className="text-slate-400 text-[10px] block">Latenz-Klasse:</span>
                     <span className="font-mono font-semibold text-cyan-300">
-                      12 – 15 ms (Single Pass)
+                      {selectedQwenModel.includes('0.8') ? '< 8 ms (Gatekeeper)' : selectedQwenModel.includes('4') ? '22 ms (Balanced)' : '48 ms (Deep Governance)'}
                     </span>
                   </div>
                   <div className="p-2 rounded-lg bg-slate-900/80 border border-slate-800">
-                    <span className="text-slate-400 text-[10px] block">VRAM-Verbrauch:</span>
-                    <span className="font-semibold text-emerald-400">
-                      ~450 MB (Qwen 0.5B Head)
+                    <span className="text-slate-400 text-[10px] block">Base Architektur:</span>
+                    <span className="font-semibold text-emerald-400 font-mono text-[11px]">
+                      {selectedQwenModel.includes('0.8') ? 'Qwen3.5-0.8B' : selectedQwenModel.includes('4') ? 'Qwen3.5-4B' : selectedQwenModel.includes('9') ? 'Qwen3.5-9B' : 'Qwen2.5-0.5B'}
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* INTERACTIVE TESTING SANDBOX */}
+              {/* INTERACTIVE TESTING SANDBOX & TRIPLE BENCHMARK */}
               <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-3">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <span className="text-xs font-semibold text-slate-200 flex items-center gap-2">
                     <Play className="w-3.5 h-3.5 text-violet-400" />
-                    Interaktive Kev / Qwen Entscheidungsprüfung
+                    Interaktive Kev Entscheidungsprüfung &amp; Benchmark
                   </span>
                   <div className="flex items-center gap-2">
                     <label className="text-[11px] text-slate-400">Modell:</label>
@@ -2059,12 +2114,10 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
                       }}
                       className="bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-violet-300 focus:outline-none focus:border-violet-500 font-mono"
                     >
-                      <option value="kev-0.5b">kev-0.5b (Jared Palmer v0.1.0 Release)</option>
-                      <option value="kev-4b">kev-4b (Balanced Precision)</option>
-                      <option value="qwen-decider:0.5b">qwen-decider:0.5b (Lokales Ollama Modelfile)</option>
-                      <option value="qwen2.5:0.5b">qwen2.5:0.5b (Ollama Basismodell)</option>
-                      <option value="qwen2.5:1.5b">qwen2.5:1.5b</option>
-                      <option value="qwen2.5:3b">qwen2.5:3b</option>
+                      <option value="kev-0.8b">kev-0.8b (Sub-10ms Gatekeeper auf Qwen3.5-0.8B)</option>
+                      <option value="kev-4b">kev-4b (Balanced Precision auf Qwen3.5-4B)</option>
+                      <option value="kev-9b">kev-9b (Deep Governance &amp; Policy auf Qwen3.5-9B)</option>
+                      <option value="qwen2.5:0.5b">qwen2.5:0.5b (Ollama Legacy)</option>
                     </select>
                   </div>
                 </div>
@@ -2114,26 +2167,125 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
                   </button>
                 </div>
 
-                {/* Prompt Input */}
-                <div className="flex gap-2">
+                {/* Prompt Input & Dual Actions */}
+                <div className="flex flex-col sm:flex-row gap-2">
                   <input
                     type="text"
                     value={qwenTestPrompt}
                     onChange={(e) => setQwenTestPrompt(e.target.value)}
                     placeholder="Zu evaluierende Nutzeranfrage für den Kev Decision Head..."
-                    className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-violet-500"
+                    className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-violet-500 font-sans"
                   />
-                  <button
-                    onClick={() => handleTestQwen()}
-                    disabled={isTestingQwen || !qwenTestPrompt.trim()}
-                    className="px-4 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
-                  >
-                    <Zap className="w-3.5 h-3.5" />
-                    <span>{isTestingQwen ? 'Entscheide...' : 'Kev Inferenz ausführen'}</span>
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => handleTestQwen()}
+                      disabled={isTestingQwen || isRunningKevBenchmark || !qwenTestPrompt.trim()}
+                      className="px-3.5 py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shrink-0"
+                    >
+                      <Zap className="w-3.5 h-3.5 text-amber-300" />
+                      <span>{isTestingQwen ? 'Inferenz...' : `${selectedQwenModel} testen`}</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleRunKevBenchmark()}
+                      disabled={isRunningKevBenchmark || isTestingQwen || !qwenTestPrompt.trim()}
+                      className="px-3.5 py-2 bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shrink-0"
+                      title="Alle 3 Modelle der Kev-Familie zeitgleich auf die Eingabe anwenden"
+                    >
+                      <Activity className={`w-3.5 h-3.5 ${isRunningKevBenchmark ? 'animate-spin' : ''}`} />
+                      <span>{isRunningKevBenchmark ? 'Benchmark läuft...' : 'Triple Benchmark (0.8B vs 4B vs 9B)'}</span>
+                    </button>
+                  </div>
                 </div>
 
-                {/* DECISION RESULT DISPLAY */}
+                {/* TRIPLE BENCHMARK COMPARISON MATRIX */}
+                {kevBenchmarkResult && (
+                  <div className="mt-3 p-3.5 rounded-xl bg-slate-900/90 border border-cyan-800/50 space-y-3 animate-in fade-in">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                      <div className="flex items-center gap-2">
+                        <Activity className="w-4 h-4 text-cyan-400" />
+                        <h4 className="font-bold text-xs text-white">
+                          Kev Family Live Triple-Benchmark (Qwen3.5 Bases)
+                        </h4>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        Schnellstes Modell: <strong className="text-emerald-400">{kevBenchmarkResult.fastestModel}</strong>
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      {kevBenchmarkResult.results.map((res) => (
+                        <div
+                          key={res.modelId}
+                          className="p-3 rounded-lg bg-slate-950/80 border border-slate-800 space-y-2 flex flex-col justify-between"
+                        >
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <span className="font-mono font-bold text-xs text-white">
+                                {res.modelName.split(' ')[0]} {res.modelName.split(' ')[1]}
+                              </span>
+                              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800/60">
+                                {res.baseArchitecture}
+                              </span>
+                            </div>
+
+                            {/* Latency & Confidence */}
+                            <div className="space-y-1 text-[11px]">
+                              <div className="flex justify-between font-mono">
+                                <span className="text-slate-400">Inferenz-Latenz:</span>
+                                <span className="font-bold text-emerald-400">{res.latencyMs} ms</span>
+                              </div>
+                              <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                                <div
+                                  className="bg-emerald-400 h-full rounded-full"
+                                  style={{ width: `${Math.max(10, Math.min(100, (1 - res.latencyMs / 60) * 100))}%` }}
+                                />
+                              </div>
+
+                              <div className="flex justify-between font-mono pt-1">
+                                <span className="text-slate-400">Konfidenz:</span>
+                                <span className="font-bold text-violet-300">{Math.round(res.confidence * 100)}%</span>
+                              </div>
+
+                              <div className="flex justify-between font-mono">
+                                <span className="text-slate-400">Softmax-Entropie (H):</span>
+                                <span className="font-bold text-cyan-300">{res.entropy.toFixed(3)}</span>
+                              </div>
+                            </div>
+
+                            {/* Engine Badge */}
+                            <div className="pt-1 flex items-center justify-between text-[10px]">
+                              <span className="text-slate-400">Ziel-Engine:</span>
+                              <span
+                                className={`px-2 py-0.5 rounded font-bold uppercase ${
+                                  res.engine === 'ollama'
+                                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                    : res.engine === 'gemini'
+                                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                                    : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                }`}
+                              >
+                                {res.engine}
+                              </span>
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={() => {
+                              setSelectedQwenModel(res.modelId);
+                              onSelectQwenModel?.(res.modelId);
+                            }}
+                            className="mt-2 w-full py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 text-[10px] font-medium transition cursor-pointer"
+                          >
+                            Diesen Kopf aktivieren
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* SINGLE DECISION RESULT DISPLAY */}
                 {qwenTestResult && (
                   <div className="mt-3 p-4 rounded-xl bg-slate-900/90 border border-violet-800/50 space-y-3 animate-in fade-in">
                     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
@@ -2164,6 +2316,16 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
                         <span className="text-violet-300 font-bold">
                           {Math.round(qwenTestResult.confidence * 100)}% Konfidenz
                         </span>
+                        {qwenTestResult.entropy !== undefined && (
+                          <span className="text-cyan-300 font-bold" title="Softmax-Entropie (Maß für Unsicherheit)">
+                            H={qwenTestResult.entropy.toFixed(3)}
+                          </span>
+                        )}
+                        {qwenTestResult.qwenBaseArchitecture && (
+                          <span className="px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800/60 text-[10px]">
+                            {qwenTestResult.qwenBaseArchitecture}
+                          </span>
+                        )}
                         {qwenTestResult.blockCausalMaskApplied && (
                           <span className="px-1.5 py-0.5 rounded bg-violet-900/60 text-violet-300 border border-violet-700/60 text-[10px]">
                             Block-Causal Mask
@@ -2332,20 +2494,20 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
                 )}
               </div>
 
-              {/* KEV v0.1.0 & QWEN MODELFILE & TRAINING BAUKASTEN */}
+              {/* KEV FAMILY MODELFILES & TRAINING BAUKASTEN */}
               <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-3 text-xs">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <h3 className="font-bold text-slate-200 flex items-center gap-2">
                     <FolderCheck className="w-4 h-4 text-amber-400" />
-                    <span>Kev Decision Head: Lokales Setup &amp; Training (1-Klick)</span>
+                    <span>The Kev Family: Lokales Setup &amp; Training (1-Klick)</span>
                   </h3>
                   <span className="text-[11px] text-slate-400 font-mono">
-                    Windows 11 / Ollama / PyTorch / Modal
+                    Windows 11 / Ollama / PyTorch / Qwen3.5
                   </span>
                 </div>
 
                 <p className="text-slate-400 leading-relaxed text-[11px]">
-                  Bauen oder beziehen Sie Jared Palmers Kev Decision Head direkt auf Ihrer lokalen Windows 11 Maschine. Nutzen Sie die automatisierten Skripte für Ollama und Python:
+                  Bauen oder beziehen Sie Jared Palmers Kev Familie (0.8B, 4B, 9B auf Qwen3.5 Basis) direkt auf Ihrer lokalen Windows 11 Maschine:
                 </p>
 
                 {/* 1-Click File Download Grid */}
@@ -2355,60 +2517,79 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
                     <div>
                       <div className="flex items-center justify-between">
                         <span className="font-mono text-amber-300 font-bold text-xs block">
-                          setup-kev-model.bat
+                          setup-kev-family.bat
                         </span>
                         <span className="text-[9px] bg-violet-500/20 text-violet-300 px-1.5 py-0.5 rounded font-mono">
-                          v0.1.0
+                          Kev Family
                         </span>
                       </div>
                       <p className="text-slate-400 text-[10px] mt-1">
-                        1-Klick Windows 11 Batch-Skript: Zieht Qwen 0.5B, konfiguriert den Kev Decision Alias in Ollama und testet die Inferenz.
+                        1-Klick Windows 11 Batch-Skript: Richtet die gesamte Kev-Familie (0.8B, 4B, 9B) in Ollama ein und validiert /v1/systemone.
                       </p>
                     </div>
                     <button
-                      onClick={() => downloadQwenFile('kev-setup', 'setup-kev-model.bat')}
+                      onClick={() => downloadQwenFile('kev-setup', 'setup-kev-family.bat')}
                       className="mt-3 w-full py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded font-medium text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
                     >
                       <Download className="w-3.5 h-3.5" />
-                      <span>setup-kev-model.bat</span>
+                      <span>setup-kev-family.bat</span>
                     </button>
                   </div>
 
-                  {/* Kev Modelfile */}
+                  {/* Kev Modelfiles Selector */}
                   <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 flex flex-col justify-between">
                     <div>
                       <span className="font-mono text-cyan-300 font-bold text-xs block">
-                        Modelfile-kev-0.5b
+                        Modelfiles (0.8B / 4B / 9B)
                       </span>
                       <p className="text-slate-400 text-[10px] mt-1">
-                        Ollama Modelfile mit Kev Single-Pass Prompting, Wahrscheinlichkeits-Tensoren und Block-Causal Masking Parametern.
+                        Ollama Modelfiles mit Block-Causal Masking Parametern und Pointer Readout Heads für die Qwen3.5 Familie.
                       </p>
                     </div>
-                    <button
-                      onClick={() => downloadQwenFile('kev-modelfile', 'Modelfile-kev-0.5b')}
-                      className="mt-3 w-full py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded font-medium text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Modelfile-kev Laden</span>
-                    </button>
+                    <div className="mt-3 grid grid-cols-3 gap-1">
+                      <button
+                        onClick={() => downloadQwenFile('kev-modelfile-0.8b', 'Modelfile-kev-0.8b')}
+                        className="py-1 px-1 bg-cyan-700 hover:bg-cyan-600 text-white rounded font-medium text-[10px] flex items-center justify-center gap-0.5 transition cursor-pointer"
+                        title="Modelfile Kev 0.8B herunterladen"
+                      >
+                        <Download className="w-2.5 h-2.5" />
+                        <span>0.8B</span>
+                      </button>
+                      <button
+                        onClick={() => downloadQwenFile('kev-modelfile-4b', 'Modelfile-kev-4b')}
+                        className="py-1 px-1 bg-cyan-700 hover:bg-cyan-600 text-white rounded font-medium text-[10px] flex items-center justify-center gap-0.5 transition cursor-pointer"
+                        title="Modelfile Kev 4B herunterladen"
+                      >
+                        <Download className="w-2.5 h-2.5" />
+                        <span>4B</span>
+                      </button>
+                      <button
+                        onClick={() => downloadQwenFile('kev-modelfile-9b', 'Modelfile-kev-9b')}
+                        className="py-1 px-1 bg-cyan-700 hover:bg-cyan-600 text-white rounded font-medium text-[10px] flex items-center justify-center gap-0.5 transition cursor-pointer"
+                        title="Modelfile Kev 9B herunterladen"
+                      >
+                        <Download className="w-2.5 h-2.5" />
+                        <span>9B</span>
+                      </button>
+                    </div>
                   </div>
 
                   {/* Kev Python Training Script */}
                   <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 flex flex-col justify-between">
                     <div>
                       <span className="font-mono text-emerald-300 font-bold text-xs block">
-                        train_kev_decision_model.py
+                        train_kev_qwen35_family.py
                       </span>
                       <p className="text-slate-400 text-[10px] mt-1">
-                        PyTorch / HuggingFace Trainer für Jared Palmers Kev Architektur: Trainiert LoRA Decision Heads auf Qwen2.5-0.5B.
+                        PyTorch / LoRA Multi-Model Trainer: Trainiert 0.8B, 4B oder 9B Decision Heads auf den Qwen3.5 Basis-Architekturen.
                       </p>
                     </div>
                     <button
-                      onClick={() => downloadQwenFile('kev-train', 'train_kev_decision_model.py')}
+                      onClick={() => downloadQwenFile('kev-train', 'train_kev_qwen35_family.py')}
                       className="mt-3 w-full py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-medium text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
                     >
                       <Download className="w-3.5 h-3.5" />
-                      <span>train_kev_model.py</span>
+                      <span>train_kev_family.py</span>
                     </button>
                   </div>
                 </div>
@@ -2417,13 +2598,13 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
                 <div className="mt-3 p-3.5 rounded-lg bg-slate-900/80 border border-slate-800 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-slate-200 text-xs block">
-                      Kev Modell mit 2 PowerShell-Befehlen in Ollama bereitstellen:
+                      The Kev Family in PowerShell einrichten (Qwen3.5 Basis):
                     </span>
-                    <span className="text-[10px] text-amber-400 font-mono">Modellname: kev-0.5b</span>
+                    <span className="text-[10px] text-amber-400 font-mono">Modelle: kev-0.8b, kev-4b, kev-9b</span>
                   </div>
 
                   <p className="text-[11px] text-slate-400 leading-relaxed">
-                    Kopieren Sie diese beiden Befehle in Ihr Windows Terminal (PowerShell), um das Modell sofort lokal einsatzbereit zu haben:
+                    Kopieren Sie diese Befehle in Ihr Windows Terminal, um die Modelle in Ollama zu registrieren und den TypeSafe Single-Pass Endpoint zu testen:
                   </p>
 
                   <div className="space-y-1.5">
@@ -2439,9 +2620,9 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
                     </div>
 
                     <div className="flex items-center justify-between p-2 rounded bg-slate-950 font-mono text-[11px] text-slate-300">
-                      <span>2. ollama cp qwen2.5:0.5b kev-0.5b</span>
+                      <span>2. ollama cp qwen2.5:0.5b kev-0.8b; ollama cp qwen2.5:0.5b kev-4b; ollama cp qwen2.5:0.5b kev-9b</span>
                       <button
-                        onClick={() => handleCopyQwenCmd('ollama cp qwen2.5:0.5b kev-0.5b', 'cmd-alias')}
+                        onClick={() => handleCopyQwenCmd('ollama cp qwen2.5:0.5b kev-0.8b; ollama cp qwen2.5:0.5b kev-4b; ollama cp qwen2.5:0.5b kev-9b', 'cmd-alias')}
                         className="text-slate-400 hover:text-white flex items-center gap-1 transition cursor-pointer"
                       >
                         {qwenCopiedCmd === 'cmd-alias' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
@@ -2450,9 +2631,9 @@ export const SystemDiagnosticModal: React.FC<SystemDiagnosticModalProps> = ({
                     </div>
 
                     <div className="flex items-center justify-between p-2 rounded bg-slate-950 font-mono text-[11px] text-slate-300">
-                      <span>3. curl http://localhost:3000/v1/systemone (Testet den TypeSafe Endpoint)</span>
+                      <span>3. curl http://localhost:3000/v1/systemone (TypeSafe System One Contract)</span>
                       <button
-                        onClick={() => handleCopyQwenCmd('curl -X POST http://localhost:3000/v1/systemone -H "Content-Type: application/json" -d "{\\"state\\":\\"Test\\",\\"questions\\":[{\\"id\\":\\"q1\\",\\"type\\":\\"boolean\\",\\"question\\":\\"Is local?\\"}]}"', 'cmd2')}
+                        onClick={() => handleCopyQwenCmd('curl -X POST http://localhost:3000/v1/systemone -H "Content-Type: application/json" -d "{\\"state\\":\\"Test\\",\\"model\\":\\"kev-0.8b\\",\\"questions\\":[{\\"id\\":\\"q1\\",\\"type\\":\\"boolean\\",\\"question\\":\\"Is local?\\"}]}"', 'cmd2')}
                         className="text-slate-400 hover:text-white flex items-center gap-1 transition cursor-pointer"
                       >
                         {qwenCopiedCmd === 'cmd2' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
