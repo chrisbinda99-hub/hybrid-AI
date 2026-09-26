@@ -21,9 +21,13 @@ import {
   FilePlus,
   Radio,
   Sliders,
+  Bot,
+  Zap,
+  RotateCw,
 } from 'lucide-react';
 import { HybridMode, ChatFileAttachment, GenerationType } from '../types';
 import { processFileForChat, formatBytes } from '../services/multimodalService';
+import { optimizePromptWithAI } from '../services/automationService';
 
 interface Props {
   onSendMessage: (
@@ -51,6 +55,7 @@ export const PromptInputBar: React.FC<Props> = ({
   const [attachedFiles, setAttachedFiles] = useState<ChatFileAttachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessingFiles, setIsProcessingFiles] = useState(false);
+  const [isOptimizing, setIsOptimizing] = useState(false);
 
   // Multimodal Generation Settings
   const [generationType, setGenerationType] = useState<GenerationType>('chat');
@@ -68,6 +73,17 @@ export const PromptInputBar: React.FC<Props> = ({
       textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`;
     }
   }, [input]);
+
+  const handleAutoOptimize = async () => {
+    if (!input.trim() || isOptimizing) return;
+    setIsOptimizing(true);
+    try {
+      const res = await optimizePromptWithAI(input);
+      setInput(res.optimizedPrompt);
+    } finally {
+      setIsOptimizing(false);
+    }
+  };
 
   const handleFilesSelected = async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
@@ -140,11 +156,13 @@ export const PromptInputBar: React.FC<Props> = ({
         effectiveGenType = 'audio';
       } else if (/^(generiere|erstelle|erzeuge|exportiere)\s+(eine?\s+)?(daten|datensatz|csv|datei|excel|tabelle|json|code)/i.test(cleanText) || lower.startsWith('/data') || lower.startsWith('/datei')) {
         effectiveGenType = 'data';
+      } else if (/^(autonom|agent|auto-pilot|autopilot):/i.test(cleanText) || lower.startsWith('/agent') || lower.startsWith('/autopilot')) {
+        effectiveGenType = 'autopilot';
       }
     }
 
     onSendMessage(
-      cleanText || (effectiveGenType === 'image' ? 'Generiere ein Bild' : 'Analysiere diese Datei'),
+      cleanText || (effectiveGenType === 'image' ? 'Generiere ein Bild' : effectiveGenType === 'autopilot' ? 'Führe das Ziel autonom aus' : 'Analysiere diese Datei'),
       attachedFiles.length > 0 ? attachedFiles : undefined,
       effectiveGenType,
       aspectRatio,
@@ -165,6 +183,11 @@ export const PromptInputBar: React.FC<Props> = ({
   };
 
   const quickPrompts = [
+    {
+      title: '🚀 Auto-Pilot',
+      text: 'Autonom: Analysiere die 20 KI Systeme, teste Code in der Sandbox und archiviere den Bericht auf Laufwerk D:',
+      action: () => setGenerationType('autopilot'),
+    },
     {
       title: 'Laufwerk D: RAG',
       text: 'Welche archivierten Erkenntnisse von Laufwerk D:\\OllamaKnowledge hast du zu WebSocket Performance und Offline RAG?',
@@ -253,6 +276,22 @@ export const PromptInputBar: React.FC<Props> = ({
           >
             <Sparkles className="w-3 h-3 text-cyan-400" />
             <span>Chat &amp; Datei-Analyse</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setGenerationType('autopilot');
+              setShowGenOptions(false);
+            }}
+            className={`px-2.5 py-1 rounded-lg font-medium flex items-center gap-1.5 transition cursor-pointer ${
+              generationType === 'autopilot'
+                ? 'bg-gradient-to-r from-cyan-600 to-indigo-600 text-white border border-cyan-400/50 shadow-xs shadow-cyan-950/60 font-semibold'
+                : 'text-cyan-400 hover:text-cyan-300 hover:bg-cyan-950/40 border border-cyan-800/40'
+            }`}
+          >
+            <Bot className="w-3 h-3 text-cyan-300" />
+            <span>🚀 Auto-Pilot</span>
           </button>
 
           <button
@@ -492,7 +531,9 @@ export const PromptInputBar: React.FC<Props> = ({
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             placeholder={
-              generationType === 'image'
+              generationType === 'autopilot'
+                ? '🚀 Ziel für autonomen Auto-Pilot eingeben (Agent plant, nutzt RAG, führt Code aus & verifiziert)...'
+                : generationType === 'image'
                 ? 'Beschreibe das gewünschte Bild (z.B. "Ein futuristischer Quantencomputer im 3D-Stil mit Neoneffekten")...'
                 : generationType === 'audio'
                 ? 'Gib den Text ein, der als Sprachaudio synthetisiert werden soll...'
@@ -514,6 +555,24 @@ export const PromptInputBar: React.FC<Props> = ({
           />
 
           <div className="flex items-center gap-1.5 shrink-0">
+            {/* Auto-Prompt Optimizer Wand Button */}
+            {input.trim().length > 3 && (
+              <button
+                type="button"
+                onClick={handleAutoOptimize}
+                disabled={isOptimizing || isLoading}
+                className="h-9 px-2.5 rounded-xl bg-fuchsia-950/80 hover:bg-fuchsia-900/80 border border-fuchsia-500/40 text-fuchsia-300 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer shadow-xs disabled:opacity-50"
+                title="Prompt durch SLM/Gemini mit Kontext, Spezifikationen und Verifikation optimieren"
+              >
+                {isOptimizing ? (
+                  <RotateCw className="w-3.5 h-3.5 animate-spin text-fuchsia-400" />
+                ) : (
+                  <Wand2 className="w-3.5 h-3.5 text-fuchsia-400" />
+                )}
+                <span className="hidden sm:inline">Optimieren</span>
+              </button>
+            )}
+
             {!showQuickPrompts && (
               <button
                 type="button"
@@ -546,6 +605,11 @@ export const PromptInputBar: React.FC<Props> = ({
                 <>
                   <Sparkles className="w-4 h-4 animate-spin" />
                   <span>{isProcessingFiles ? 'Lade Datei...' : 'Berechne...'}</span>
+                </>
+              ) : generationType === 'autopilot' ? (
+                <>
+                  <Bot className="w-3.5 h-3.5" />
+                  <span>Autonom ausführen</span>
                 </>
               ) : generationType === 'image' ? (
                 <>

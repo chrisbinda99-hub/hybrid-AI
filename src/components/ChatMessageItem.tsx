@@ -38,8 +38,13 @@ import {
   X,
   Eye,
   FileCheck,
+  Terminal,
+  Bot,
+  Search,
+  AlertCircle,
 } from 'lucide-react';
 import { formatBytes } from '../services/multimodalService';
+import { executeCodeSnippet } from '../services/automationService';
 import { ChatMessage, ChatFileAttachment, GeneratedMediaItem } from '../types';
 
 interface Props {
@@ -76,6 +81,8 @@ const PreBlock = ({ children, ...props }: any) => {
   const [showApkMenu, setShowApkMenu] = useState(false);
   const [buildingApk, setBuildingApk] = useState(false);
   const [apkFeedback, setApkFeedback] = useState<string | null>(null);
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [execResult, setExecResult] = useState<{ stdout: string; stderr: string; success: boolean; durationMs: number; exitCode: number } | null>(null);
 
   // In react-markdown v10, pre wraps a code element: <pre><code className="language-xyz">...</code></pre>
   const isCodeElement = React.isValidElement(children);
@@ -84,6 +91,21 @@ const PreBlock = ({ children, ...props }: any) => {
   const match = /language-([a-zA-Z0-9_-]+)/.exec(className);
   const language = match ? match[1] : '';
   const rawCode = extractTextFromChildren(codeProps?.children ?? children).replace(/\n$/, '');
+
+  const canExecute = ['python', 'py', 'javascript', 'js', 'typescript', 'ts', 'bash', 'sh'].includes((language || '').toLowerCase());
+
+  const handleExecute = async () => {
+    setIsExecuting(true);
+    setExecResult(null);
+    try {
+      const res = await executeCodeSnippet(language || 'python', rawCode);
+      setExecResult(res);
+    } catch (err: any) {
+      setExecResult({ stdout: '', stderr: err?.message || 'Ausführungsfehler', success: false, durationMs: 0, exitCode: 1 });
+    } finally {
+      setIsExecuting(false);
+    }
+  };
 
   const handleCopy = () => {
     navigator.clipboard.writeText(rawCode);
@@ -208,6 +230,29 @@ const PreBlock = ({ children, ...props }: any) => {
             )}
           </div>
 
+          {/* Live Run Sandbox Button */}
+          {canExecute && (
+            <button
+              onClick={handleExecute}
+              type="button"
+              disabled={isExecuting}
+              className="flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-sans text-[11px] font-semibold transition cursor-pointer disabled:opacity-50"
+              title="Code in lokaler Sandbox ausführen (Live Run)"
+            >
+              {isExecuting ? (
+                <>
+                  <RefreshCw className="w-3 h-3 text-amber-400 animate-spin" />
+                  <span>Läuft...</span>
+                </>
+              ) : (
+                <>
+                  <Play className="w-3 h-3 fill-current text-amber-400" />
+                  <span>Live Ausführen</span>
+                </>
+              )}
+            </button>
+          )}
+
           {/* Copy Button */}
           <button
             onClick={handleCopy}
@@ -237,6 +282,46 @@ const PreBlock = ({ children, ...props }: any) => {
       <pre className="p-4 overflow-x-auto text-[13px] sm:text-sm font-mono text-slate-200 leading-relaxed">
         <code className={className}>{rawCode}</code>
       </pre>
+
+      {/* Live Sandbox Terminal Output Drawer */}
+      {execResult && (
+        <div className="border-t border-slate-800 bg-slate-900/95 p-3 space-y-2 text-xs font-mono animate-in fade-in">
+          <div className="flex items-center justify-between text-[11px]">
+            <div className="flex items-center gap-1.5">
+              <Terminal className="w-3.5 h-3.5 text-amber-400" />
+              <span className="font-semibold text-slate-200">Sandbox-Terminal ({execResult.durationMs}ms)</span>
+              <span
+                className={`px-1.5 py-0.2 rounded text-[10px] ${
+                  execResult.success
+                    ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40'
+                    : 'bg-rose-950 text-rose-300 border border-rose-500/40'
+                }`}
+              >
+                {execResult.success ? 'Exit 0 (Erfolg)' : `Exit ${execResult.exitCode} (Fehler)`}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setExecResult(null)}
+              className="text-slate-500 hover:text-slate-300 text-[10px] cursor-pointer"
+            >
+              Schließen
+            </button>
+          </div>
+
+          {execResult.stdout && (
+            <pre className="p-2.5 rounded-lg bg-black/60 border border-slate-800 text-emerald-300 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
+              {execResult.stdout}
+            </pre>
+          )}
+
+          {execResult.stderr && (
+            <pre className="p-2.5 rounded-lg bg-black/60 border border-rose-900/60 text-rose-300 whitespace-pre-wrap leading-relaxed max-h-32 overflow-y-auto">
+              {execResult.stderr}
+            </pre>
+          )}
+        </div>
+      )}
     </div>
   );
 };
@@ -830,6 +915,70 @@ export const ChatMessageItem: React.FC<Props> = ({ message, fontSize = 'normal' 
             <span className="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-[10px] font-semibold border border-cyan-500/40">
               Einzelbetrieb Aktiv
             </span>
+          </div>
+        </div>
+      )}
+
+      {/* Autonomous Agent Execution Trace Card (Auto-Pilot) */}
+      {meta?.agentTrace && (
+        <div className="mt-3 rounded-xl border border-cyan-500/50 bg-cyan-950/30 p-4 space-y-3 text-xs text-cyan-100 shadow-md animate-in fade-in">
+          <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-cyan-800/60">
+            <div className="flex items-center gap-2">
+              <Bot className="w-4 h-4 text-cyan-400" />
+              <span className="font-semibold text-white">Autonomer Agenten-Ablaufplan (Auto-Pilot):</span>
+              <span className="text-cyan-300 font-mono text-[11px]">{meta.agentTrace.totalDurationMs}ms</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-[10px] font-mono">
+                Hallunox: Verifiziert
+              </span>
+              <span className="px-2 py-0.5 rounded-full bg-cyan-900/60 border border-cyan-500/40 text-cyan-200 text-[10px] font-mono">
+                D:\ Archiviert
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+            {meta.agentTrace.milestones.map((ms) => (
+              <div
+                key={ms.id}
+                className="p-2.5 rounded-lg bg-slate-950/70 border border-cyan-900/60 space-y-1"
+              >
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="font-mono text-cyan-400 font-bold">Schritt {ms.stepNumber}</span>
+                  <span className="text-[10px] text-slate-400 font-mono">{ms.durationMs}ms</span>
+                </div>
+                <div className="font-medium text-slate-200 text-[11px] truncate">{ms.title}</div>
+                <div className="text-[10px] text-slate-400 line-clamp-2">{ms.description}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Verified Web Grounding Citations */}
+      {meta?.webSearchResults && meta.webSearchResults.length > 0 && (
+        <div className="mt-3 rounded-xl border border-emerald-500/40 bg-emerald-950/20 p-3 space-y-2 text-xs text-emerald-200 animate-in fade-in">
+          <div className="flex items-center gap-2 font-semibold text-slate-100">
+            <Search className="w-4 h-4 text-emerald-400" />
+            <span>Verifizierte Web-Quellen &amp; Zitationen ({meta.webSearchResults.length}):</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {meta.webSearchResults.map((ws, wIdx) => (
+              <a
+                key={wIdx}
+                href={ws.url}
+                target="_blank"
+                rel="noreferrer"
+                className="p-2 rounded-lg bg-slate-950/80 border border-slate-800 hover:border-emerald-500/60 flex items-center justify-between gap-2 text-slate-300 hover:text-white transition"
+              >
+                <div className="truncate min-w-0">
+                  <div className="text-[11px] font-medium text-slate-200 truncate">{ws.title}</div>
+                  <div className="text-[9px] text-emerald-400 font-mono truncate">{ws.source}</div>
+                </div>
+                <ExternalLink className="w-3 h-3 text-slate-400 shrink-0" />
+              </a>
+            ))}
           </div>
         </div>
       )}

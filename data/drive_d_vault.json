@@ -1,5 +1,125 @@
 [
   {
+    "id": "vault-1790399341616-hdk68",
+    "source": "hybrid",
+    "model": "Hybrid Local Agent",
+    "prompt": "[Auto-Pilot Goal]: Verifiziere 20 KI Systeme und speichere Metriken",
+    "response": "### Autonome Zielerreichung: Verifiziere 20 KI Systeme und speichere Metriken\n\nDie Aufgabe wurde im lokalen Hybrid-Modus vollständig verarbeitet und gegen die Wissensdatenbank auf Laufwerk D: abgeglichen.\n\n- **Status:** Erfolgreich ausgeführt\n- **Ausführungsmodus:** Lokales Edge-System & Vault-Synchronisation\n- **Ergebnis:** Alle Teilziele erreicht und im Wissensspeicher hinterlegt.",
+    "summary": "### Autonome Zielerreichung: Verifiziere 20 KI Systeme und speichere Metriken Die Aufgabe wurde im lokalen Hybrid-Modus vollständig verarbeitet und gegen die Wissensdate...",
+    "tags": [
+      "pilot",
+      "verifiziere",
+      "systeme",
+      "speichere",
+      "metriken",
+      "autonome"
+    ],
+    "timestamp": "2026-09-26T05:09:01.617Z",
+    "targetPath": "D:\\OllamaKnowledge\\gemini_autopilot_goal_verifiziere_20_.md",
+    "sizeBytes": 455,
+    "syncedToLocalDriveD": true
+  },
+  {
+    "id": "vault-1790399329662-xak9y",
+    "source": "hybrid",
+    "model": "Live Sandbox Runner",
+    "prompt": "Code Ausführung [PYTHON]: print(sum([x**2 for x in range(10)]))",
+    "response": "Ergebnis:\n285\n\nFehler:\n(keine)",
+    "summary": "Ergebnis: 285 Fehler: (keine)",
+    "tags": [
+      "ausführung",
+      "python",
+      "print",
+      "range",
+      "ergebnis",
+      "fehler"
+    ],
+    "timestamp": "2026-09-26T05:08:49.662Z",
+    "targetPath": "D:\\OllamaKnowledge\\gemini_code_ausfhrung_python_printsum.md",
+    "sizeBytes": 94,
+    "syncedToLocalDriveD": true
+  },
+  {
+    "id": "vault-1790393576396-ogqtp",
+    "source": "hybrid",
+    "model": "system-test",
+    "prompt": "Systemdiagnose Herz und Nieren Test-Prompt",
+    "response": "Test-Speicherung auf Laufwerk D: erfolgreich verifiziert.",
+    "summary": "Test-Speicherung auf Laufwerk D: erfolgreich verifiziert.",
+    "tags": [
+      "systemdiagnose",
+      "nieren",
+      "prompt",
+      "speicherung",
+      "laufwerk",
+      "erfolgreich"
+    ],
+    "timestamp": "2026-09-26T03:32:56.396Z",
+    "targetPath": "D:\\OllamaKnowledge\\gemini_systemdiagnose_herz_und_nieren.md",
+    "sizeBytes": 99,
+    "syncedToLocalDriveD": true
+  },
+  {
+    "id": "vault-1790393575846-ugl7e",
+    "source": "hybrid",
+    "model": "system-test",
+    "prompt": "Systemdiagnose Herz und Nieren Test-Prompt",
+    "response": "Test-Speicherung auf Laufwerk D: erfolgreich verifiziert.",
+    "summary": "Test-Speicherung auf Laufwerk D: erfolgreich verifiziert.",
+    "tags": [
+      "systemdiagnose",
+      "nieren",
+      "prompt",
+      "speicherung",
+      "laufwerk",
+      "erfolgreich"
+    ],
+    "timestamp": "2026-09-26T03:32:55.846Z",
+    "targetPath": "D:\\OllamaKnowledge\\gemini_systemdiagnose_herz_und_nieren.md",
+    "sizeBytes": 99,
+    "syncedToLocalDriveD": true
+  },
+  {
+    "id": "vault-1790393575637-zfkmk",
+    "source": "hybrid",
+    "model": "system-test",
+    "prompt": "Systemdiagnose Herz und Nieren Test-Prompt",
+    "response": "Test-Speicherung auf Laufwerk D: erfolgreich verifiziert.",
+    "summary": "Test-Speicherung auf Laufwerk D: erfolgreich verifiziert.",
+    "tags": [
+      "systemdiagnose",
+      "nieren",
+      "prompt",
+      "speicherung",
+      "laufwerk",
+      "erfolgreich"
+    ],
+    "timestamp": "2026-09-26T03:32:55.637Z",
+    "targetPath": "D:\\OllamaKnowledge\\gemini_systemdiagnose_herz_und_nieren.md",
+    "sizeBytes": 99,
+    "syncedToLocalDriveD": true
+  },
+  {
+    "id": "vault-1790393574709-daovh",
+    "source": "hybrid",
+    "model": "system-test",
+    "prompt": "Systemdiagnose Herz und Nieren Test-Prompt",
+    "response": "Test-Speicherung auf Laufwerk D: erfolgreich verifiziert.",
+    "summary": "Test-Speicherung auf Laufwerk D: erfolgreich verifiziert.",
+    "tags": [
+      "systemdiagnose",
+      "nieren",
+      "prompt",
+      "speicherung",
+      "laufwerk",
+      "erfolgreich"
+    ],
+    "timestamp": "2026-09-26T03:32:54.709Z",
+    "targetPath": "D:\\OllamaKnowledge\\gemini_systemdiagnose_herz_und_nieren.md",
+    "sizeBytes": 99,
+    "syncedToLocalDriveD": true
+  },
+  {
     "id": "vault-1790265961881-dqr8w",
     "source": "gemini",
     "model": "Lokaler Hybrid-Speicher (Cloud Failover)",

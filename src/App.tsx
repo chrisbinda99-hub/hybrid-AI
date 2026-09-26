@@ -21,6 +21,7 @@ import { SystemDiagnosticModal } from './components/SystemDiagnosticModal';
 import { AndroidApkModal } from './components/AndroidApkModal';
 import { MultiAiMatrixModal } from './components/MultiAiMatrixModal';
 import { SoloSystemControlBar } from './components/SoloSystemControlBar';
+import { AutomationHubView } from './components/AutomationHubView';
 import { usePWAInstall } from './hooks/usePWAInstall';
 import {
   ChatMessage,
@@ -55,6 +56,7 @@ import {
   DEFAULT_QWEN_DECIDER_MODEL,
 } from './services/qwenDeciderService';
 import { routeWithLoihi2 } from './services/loihi2Service';
+import { executeAutonomousAgentRun } from './services/automationService';
 import { QwenDeciderEvaluation, Loihi2RoutingResult } from './types';
 import {
   Cpu,
@@ -390,6 +392,29 @@ export default function App() {
     setIsLoading(true);
 
     try {
+      // Specialized Autonomous Mode (Auto-Pilot Multi-Agent)
+      if (generationType === 'autopilot') {
+        const agentRes = await executeAutonomousAgentRun(text);
+        const assistantMsg: ChatMessage = {
+          id: `assistant-${Date.now()}`,
+          role: 'assistant',
+          content: agentRes.finalSynthesis,
+          engine: 'hybrid',
+          modelName: 'Auto-Pilot Multi-Agent',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          durationMs: agentRes.durationMs,
+          metadata: {
+            mode: 'smart_router',
+            routedReason: 'Autonomer Multi-Agenten Ablaufplan (Auto-Pilot)',
+            savedToDriveD: true,
+            targetPath: agentRes.trace.artifacts[0]?.path || 'D:\\OllamaKnowledge\\auto_learning\\',
+            agentTrace: agentRes.trace,
+          },
+        };
+        setMessages((prev) => [...prev, assistantMsg]);
+        return;
+      }
+
       // Specialized Generative Mode (Image, Audio/TTS, Video/Motion, Data)
       if (generationType !== 'chat') {
         const geminiRes = await generateGeminiResponse(
@@ -1219,6 +1244,16 @@ export default function App() {
           isSoloMode={hybridMode === 'solo_system'}
           customHost={customHost}
           onSwitchToChat={() => handleSelectWorkspace('chat')}
+        />
+      )}
+
+      {/* WORKSPACE: AUTOMATION & PIPELINES HUB */}
+      {activeWorkspace === 'automation' && (
+        <AutomationHubView
+          onSendToChat={(txt) => {
+            handleSelectWorkspace('chat');
+            handleSendMessage(txt);
+          }}
         />
       )}
 

@@ -11,10 +11,11 @@ import {
   CheckCircle2,
   AlertTriangle,
   Monitor,
+  Bot,
 } from 'lucide-react';
 import { HybridMode, OllamaStatus } from '../types';
 
-export type WorkspaceTab = 'chat' | 'models' | 'knowledge' | 'matrix' | 'system';
+export type WorkspaceTab = 'chat' | 'models' | 'knowledge' | 'matrix' | 'automation' | 'system';
 
 interface Props {
   activeWorkspace: WorkspaceTab;
@@ -77,6 +78,12 @@ export const MainNavigation: React.FC<Props> = ({
       label: 'KI-Matrix',
       icon: Layers,
       countBadge: `${activeSystemsCount}/20`,
+    },
+    {
+      id: 'automation',
+      label: 'Pipelines & Automation',
+      icon: Bot,
+      countBadge: '5 Aktiv',
     },
     {
       id: 'system',

@@ -118,7 +118,7 @@ export interface GeminiModelInfo {
 
 export type MultimodalFileType = 'image' | 'video' | 'audio' | 'pdf' | 'code' | 'data' | 'text';
 
-export type GenerationType = 'chat' | 'image' | 'audio' | 'video' | 'data';
+export type GenerationType = 'chat' | 'image' | 'audio' | 'video' | 'data' | 'autopilot';
 
 export interface ChatFileAttachment {
   id: string;
@@ -155,6 +155,60 @@ export interface GeneratedMediaItem {
   playbackSpeed?: number;
 }
 
+export interface CodeExecutionResult {
+  id: string;
+  language: string;
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+  durationMs: number;
+  success: boolean;
+  executedAt: string;
+  scriptFile?: string;
+}
+
+export interface AgentMilestone {
+  id: string;
+  stepNumber: number;
+  title: string;
+  description: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  toolUsed?: string;
+  durationMs?: number;
+  outputSnippet?: string;
+}
+
+export interface AgentExecutionTrace {
+  goal: string;
+  status: 'planning' | 'executing' | 'verifying' | 'completed' | 'failed';
+  milestones: AgentMilestone[];
+  artifacts: {
+    type: 'code' | 'file' | 'media' | 'knowledge';
+    name: string;
+    path?: string;
+    url?: string;
+  }[];
+  totalDurationMs: number;
+  hallunoxPassed: boolean;
+  savedToKnowledgeVault: boolean;
+}
+
+export interface WebSearchResultItem {
+  title: string;
+  snippet: string;
+  url: string;
+  source: string;
+}
+
+export interface AutomationPipelineSettings {
+  autoPilot: boolean;
+  autoRunCode: boolean;
+  autoOptimizePrompt: boolean;
+  autoWebSearch: boolean;
+  autoVerifyHallunox: boolean;
+  autoArchiveDriveD: boolean;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
@@ -189,6 +243,10 @@ export interface ChatMessage {
     loihi2Routing?: Loihi2RoutingResult;
     matrixSwarmResult?: MatrixSwarmResult;
     soloSystemResult?: SingleSystemExecutionResult;
+    agentTrace?: AgentExecutionTrace;
+    codeExecutionResults?: Record<string, CodeExecutionResult>;
+    webSearchResults?: WebSearchResultItem[];
+    promptOptimizedFrom?: string;
   };
 }
 
